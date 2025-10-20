@@ -1,0 +1,75 @@
+/* Register.css */
+.register-container .robot-wrapper {
+  position: absolute;
+  top: 20px; /* Ajusta la distancia desde el borde superior */
+  left: 50%; /* Centrado horizontal */
+  transform: translateX(65%); /* Asegura que el robot esté perfectamente centrado */
+}
+
+
+.input-group {
+  margin-bottom: 15px;
+}
+
+.next-button {
+  background-color: #4facfe;
+  color: white;
+  padding: 10px 20px;
+  border: none;
+  cursor: pointer;
+  border-radius: 5px;
+}
+
+.next-button:hover {
+  background-color: #00f2fe;
+}
+
+.register-title {
+  font-size: 2rem;
+  margin-bottom: 20px;
+}
+
+input {
+  padding: 10px;
+  width: 100%;
+  margin-bottom: 10px;
+  border-radius: 5px;
+}
+
+label {
+  font-size: 1rem;
+  margin-bottom: 5px;
+  display: block;
+}
+
+.speech-bubble {
+  font-size: 1.1rem;
+  color: #4facfe;
+  font-weight: bold;
+}
+
+.robot-wrapper {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+}
+.password-container {
+  position: relative;
+  width: 100%;
+}
+
+.eye-icon {
+  position: absolute;
+  right: 10px;
+  top: 10px;
+  cursor: pointer;
+  color: #4facfe;
+}
+
+.password-restrictions {
+  font-size: 0.9rem;
+  color: #ff6b6b; /* Rojo */
+  margin-top: 5px;
+  font-weight: bold;
+}
+
