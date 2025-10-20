@@ -3,21 +3,23 @@ import { useNavigate } from "react-router-dom";
 import "./Register.css";
 import Helper from "../components/Helper";
 
-
 const Register = () => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");         // nombre
-  const [email, setEmail] = useState("");       // ← email
+  const [email, setEmail] = useState("");       // email
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");   // ✅ mensaje de éxito
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   const togglePasswordVisibility = () => setPasswordVisible((v) => !v);
 
   const handleNextStep = async () => {
     setError("");
+    setSuccess("");
 
     if (step === 1) {
       if (!name || !email) {
@@ -39,23 +41,38 @@ const Register = () => {
       }
 
       try {
+        setLoading(true);
+
+        // normaliza email en el cliente (el backend también lo hace)
+        const payload = {
+          name: name.trim(),
+          email: String(email).trim().toLowerCase(),
+          password,
+        };
+
         const res = await fetch("http://localhost:4000/api/auth/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, email, password }),
+          body: JSON.stringify(payload),
         });
+
         const data = await res.json();
+
         if (!res.ok) {
           setError(data?.error || "Error al registrarse");
+          setLoading(false);
           return;
         }
-        // opcional: autologin y redirección
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
-        navigate("/home", { replace: true });
+
+        // ✅ Registro OK: NO autologear, NO guardar token. Redirigir a /login.
+        setError("");
+        setSuccess("Cuenta creada. Ahora inicia sesión…");
+        setTimeout(() => navigate("/login", { replace: true }), 1200);
       } catch (err) {
         console.error(err);
         setError("No se pudo conectar al servidor");
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -93,7 +110,11 @@ const Register = () => {
             </div>
 
             {error && <p style={{ color: "#ef4444" }}>{error}</p>}
-            <button className="next-button" onClick={handleNextStep}>Siguiente</button>
+            {success && <p style={{ color: "#6ee7b7" }}>{success}</p>}
+
+            <button className="next-button" onClick={handleNextStep} disabled={loading}>
+              {loading ? "Procesando..." : "Siguiente"}
+            </button>
           </>
         )}
 
@@ -127,7 +148,11 @@ const Register = () => {
             </div>
 
             {error && <p style={{ color: "#ef4444" }}>{error}</p>}
-            <button className="next-button" onClick={handleNextStep}>Registrar</button>
+            {success && <p style={{ color: "#6ee7b7" }}>{success}</p>}
+
+            <button className="next-button" onClick={handleNextStep} disabled={loading}>
+              {loading ? "Registrando..." : "Registrar"}
+            </button>
           </>
         )}
       </div>
