@@ -1,101 +1,136 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Register.css";
-import Helper from "../components/Helper"; // Importamos el componente del robot
+import Helper from "../components/Helper";
+
 
 const Register = () => {
-  const [step, setStep] = useState(1); // Para manejar el paso actual del formulario
-  const [username, setUsername] = useState(""); // Nombre de usuario
-  const [password, setPassword] = useState(""); // Contraseña
-  const [confirmPassword, setConfirmPassword] = useState(""); // Confirmar contraseña
-  const [passwordVisible, setPasswordVisible] = useState(false); // Para mostrar/ocultar la contraseña
-  const navigate = useNavigate(); // Para redireccionar
+  const [step, setStep] = useState(1);
+  const [name, setName] = useState("");         // nombre
+  const [email, setEmail] = useState("");       // ← email
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
+  const [error, setError] = useState("");
+  const navigate = useNavigate();
 
-  // Función para manejar el paso de ingresar nombre de usuario
-  const handleNextStep = () => {
+  const togglePasswordVisibility = () => setPasswordVisible((v) => !v);
+
+  const handleNextStep = async () => {
+    setError("");
+
     if (step === 1) {
-      if (username) {
-        setStep(2); // Pasar al paso 2 (ingresar contraseña)
-      } else {
-        alert("Por favor, ingresa tu nombre de usuario.");
+      if (!name || !email) {
+        setError("Ingresa nombre y correo");
+        return;
       }
-    } else if (step === 2) {
-      // Expresión regular para validar la contraseña
-      const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
-      if (passwordRegex.test(password) && password === confirmPassword) {
-        // Si la contraseña es válida, proceder al siguiente paso
-        console.log("Usuario:", username, "Contraseña:", password);
-        navigate("/home"); // Redirige a la página de inicio
-      } else {
-        alert("La contraseña debe tener al menos una mayúscula, un número, un carácter especial y ambas contraseñas deben coincidir.");
+      setStep(2);
+      return;
+    }
+
+    if (step === 2) {
+      if (!password || !confirmPassword) {
+        setError("Ingresa y confirma tu contraseña");
+        return;
+      }
+      if (password !== confirmPassword) {
+        setError("Las contraseñas no coinciden");
+        return;
+      }
+
+      try {
+        const res = await fetch("http://localhost:4000/api/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, email, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data?.error || "Error al registrarse");
+          return;
+        }
+        // opcional: autologin y redirección
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("user", JSON.stringify(data.user));
+        navigate("/home", { replace: true });
+      } catch (err) {
+        console.error(err);
+        setError("No se pudo conectar al servidor");
       }
     }
   };
 
-  // Mensaje dependiendo del paso
-  const robotMessage = step === 1 ? "Ingresa tu nombre de usuario" : "Ingresa tu contraseña (con mayúscula, número y carácter especial)";
-
-  // Función para mostrar/ocultar la contraseña
-  const togglePasswordVisibility = () => {
-    setPasswordVisible(!passwordVisible);
-  };
-
   return (
     <div className="register-container">
-      <Helper message={robotMessage} /> {/* Pasamos el mensaje dinámico al robot */}
+      <Helper message={step === 1 ? "Ingresa tu nombre y correo" : "Crea tu contraseña"} />
+      <div className="register-box">
+        <h2>Crear cuenta</h2>
 
-      <h2 className="register-title">Crear cuenta</h2>
-      
-      {/* Paso 1: Nombre de usuario */}
-      {step === 1 && (
-        <>
-          <div className="input-group">
-            <label htmlFor="username">Ingresa tu nombre de usuario</label>
-            <input
-              type="text"
-              id="username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Nombre de usuario"
-            />
-          </div>
-          <button className="next-button" onClick={handleNextStep}>Siguiente</button>
-        </>
-      )}
-
-      {/* Paso 2: Contraseña */}
-      {step === 2 && (
-        <>
-          <div className="input-group">
-            <label htmlFor="password">Ingresa tu contraseña</label>
-            <div className="password-container">
+        {step === 1 && (
+          <>
+            <div className="input-group">
+              <label htmlFor="name">Nombre</label>
               <input
-                type={passwordVisible ? "text" : "password"} // Cambiar tipo de input
-                id="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Contraseña"
+                id="name"
+                type="text"
+                placeholder="Tu nombre"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
               />
-              <span className="eye-icon" onClick={togglePasswordVisibility}>
-                👁️ {/* Icono de ojo */}
-              </span>
             </div>
-          </div>
-          
-          <div className="input-group">
-            <label htmlFor="confirmPassword">Confirmar contraseña</label>
-            <input
-              type="password"
-              id="confirmPassword"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Confirmar contraseña"
-            />
-          </div>
 
-          <button className="next-button" onClick={handleNextStep}>Registrar</button>
-        </>
-      )}
+            <div className="input-group">
+              <label htmlFor="email">Correo</label>
+              <input
+                id="email"
+                type="email"
+                placeholder="tu@correo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
+
+            {error && <p style={{ color: "#ef4444" }}>{error}</p>}
+            <button className="next-button" onClick={handleNextStep}>Siguiente</button>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div className="input-group">
+              <label htmlFor="password">Contraseña</label>
+              <div className="password-container">
+                <input
+                  id="password"
+                  type={passwordVisible ? "text" : "password"}
+                  placeholder="••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <span className="eye-icon" onClick={togglePasswordVisibility}>👁️</span>
+              </div>
+            </div>
+
+            <div className="input-group">
+              <label htmlFor="confirmPassword">Confirmar contraseña</label>
+              <input
+                id="confirmPassword"
+                type="password"
+                placeholder="••••••"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+            </div>
+
+            {error && <p style={{ color: "#ef4444" }}>{error}</p>}
+            <button className="next-button" onClick={handleNextStep}>Registrar</button>
+          </>
+        )}
+      </div>
     </div>
   );
 };
