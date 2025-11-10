@@ -76,4 +76,20 @@ router.post("/login", async (req, res) => {
   }
 });
 
+router.post("/publish", async (req, res) => {
+  try {
+    const { product, description, price, image } = req.body || {};
+    if (!product || !description || !price || !image) {
+      return res.status(400).json({ error: "Faltan campos" });
+    }
+    const insert = await pool.query(
+      "INSERT INTO products(product,description,price,image) VALUES($1,$2,$3,$4)",
+      [product, description, price,image]
+    );
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al publicar producto" });
+  }
+});
+
 export default router;
