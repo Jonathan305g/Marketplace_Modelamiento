@@ -2,12 +2,17 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import authRoutes from "./auth.routes.js";
+import productRoutes from './product.routes.js';
 
 dotenv.config();
 
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+
+// Middlewares para las rutas API
+app.use('/api', authRoutes);
+app.use('/api', productRoutes);
 
 app.get("/", (_req, res) => res.send("API OK"));
 app.use("/api/auth", authRoutes);
