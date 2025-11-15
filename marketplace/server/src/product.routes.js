@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { 
     createProduct, 
     getProducts,
-    // updateProduct, // Asume que estas funciones están implementadas en el controller
-    // deleteProduct
+    deleteProduct,
+
 } from './product.controller.js';
 import { authRequired } from './middleware/auth.middleware.js'; 
 
@@ -17,5 +17,7 @@ router.get('/products', getProducts);
 router.post('/products', authRequired, createProduct);
 // router.put('/products/:id', authRequired, updateProduct);
 // router.delete('/products/:id', authRequired, deleteProduct);
+// Ruta protegida para la eliminación
+router.delete('/products/:id', authRequired, deleteProduct);
 
 export default router;

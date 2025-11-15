@@ -81,3 +81,36 @@ export const getProducts = async (req, res) => {
         res.status(500).json({ message: 'Error al obtener productos.' });
     }
 };
+// --- D E L E T E (Eliminar Producto) ---
+export const deleteProduct = async (req, res) => {
+    const { id } = req.params; // ID del producto a eliminar
+    const userId = req.userId; // ID del usuario autenticado (del token)
+
+    if (!id) {
+        return res.status(400).json({ message: 'Se requiere el ID del producto.' });
+    }
+
+    try {
+        // La consulta verifica que el producto exista Y que pertenezca al usuario autenticado.
+        // La eliminación en 'product_images' se maneja automáticamente por ON DELETE CASCADE.
+        const productQuery = `
+            DELETE FROM products
+            WHERE id = $1 AND user_id = $2
+            RETURNING id;
+        `;
+        const result = await pool.query(productQuery, [id, userId]);
+
+        if (result.rowCount === 0) {
+            // Si rowCount es 0, el producto no existe o no pertenece a este usuario.
+            return res.status(404).json({ message: 'Producto no encontrado o no autorizado para eliminar.' });
+        }
+
+        res.status(200).json({ message: `Producto con ID ${id} eliminado con éxito.` });
+
+    } catch (error) {
+        console.error('Error al eliminar el producto:', error);
+        res.status(500).json({ message: 'Error interno del servidor al eliminar el producto.', error: error.message });
+    }
+};
+
+export { createProduct, getProducts, deleteProduct };

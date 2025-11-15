@@ -1,72 +1,97 @@
 import React, { useState, useEffect } from 'react';
 import FilterBar from '../components/FilterBar'; 
 import ProductGrid from '../components/ProductGrid';
-import ProductPublish from '../components/ProductPublish'; // Componente de formulario de publicación
+import ProductPublish from '../components/ProductPublish'; 
+import ProductDetailModal from '../components/ProductDetailModal';
 
 function Home() {
-    // Estado para controlar la visibilidad del formulario de publicación
+    // ESTADOS
     const [showPublishForm, setShowPublishForm] = useState(false);
-    
-    // NUEVO ESTADO: Almacena la lista de productos
     const [products, setProducts] = useState([]);
+    const [selectedProduct, setSelectedProduct] = useState(null);
+    
+    // ID del usuario actual para la lógica de "dueño del producto" en el modal
+    const currentUserId = localStorage.getItem('userId');
+    
+    // FUNCIONES ASÍNCRONAS Y CALLBACKS
 
-    // NUEVA FUNCIÓN: Lógica para obtener productos del backend
     const fetchProducts = async () => {
         console.log('Recargando productos...');
         try {
-            // Asegúrate que la URL es correcta para tu endpoint GET /api/products
             const response = await fetch('http://localhost:4000/api/products'); 
             const data = await response.json();
-            setProducts(data); // Actualiza el estado con los productos
+            setProducts(data);
         } catch (error) {
             console.error("Error al cargar los productos:", error);
         }
     };
+    
+    const handleDeleteProduct = async (productId) => {
+        const token = localStorage.getItem('token');
+        if (!token) return alert('No autorizado. Por favor, inicia sesión.');
 
-    // Función para abrir el formulario
+        if (!window.confirm("¿Estás seguro de que quieres eliminar este producto?")) return;
+
+        try {
+            const response = await fetch(`http://localhost:4000/api/products/${productId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+
+            if (response.ok) {
+                alert('Producto eliminado con éxito.');
+                // Cierra el modal y recarga la lista
+                setSelectedProduct(null); 
+                fetchProducts(); 
+            } else {
+                const errorData = await response.json();
+                alert(`Error al eliminar: ${errorData.message}`);
+            }
+        } catch (error) {
+            alert('Error de conexión o fallo al eliminar.');
+        }
+    };
+    
+    // FUNCIONES DE VISTA/EVENTOS
+
     const handleCreatePublicationClick = () => {
         setShowPublishForm(true);
     };
 
-    // Función para cerrar el formulario (se pasa a ProductPublish)
     const handleClosePublishForm = () => {
         setShowPublishForm(false);
-        // Lógica opcional para recargar productos al cerrar el formulario
     };
     
-    // Función de callback que se ejecuta al publicarse un producto
     const handleProductCreation = () => {
-        // 1. Recarga la lista de productos
         fetchProducts(); 
-        
-        // 2. Cierra el formulario de publicación
         setShowPublishForm(false); 
     };
 
-    // Efecto para cargar los productos cuando el componente se monta
+    // Función para abrir el modal al hacer clic en la tarjeta (la pasa a ProductGrid)
+    const handleCardClick = (product) => {
+        setSelectedProduct(product);
+    };
+
+    // Función para cerrar el modal
+    const handleCloseModal = () => {
+        setSelectedProduct(null);
+    };
+
+    // EFECTO DE CARGA INICIAL
     useEffect(() => {
         fetchProducts();
-    }, []); // El array vacío asegura que se ejecuta solo una vez al inicio
+    }, []);
 
+    
     return (
         <div className="home-container">
-            {/* Contenedor del nuevo botón y la barra de filtros */}
+            {/* Contenedor del botón de publicación */}
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 0' }}>
-                {/* 1. NUEVO BOTÓN: Crear Publicación (visible cuando el formulario está cerrado) */}
                 {!showPublishForm && (
                     <button 
                         onClick={handleCreatePublicationClick} 
-                        className="btn-create-publication" // Aplica una clase para estilizar
-                        style={{
-                            padding: '10px 20px', 
-                            borderRadius: '8px', 
-                            border: 'none', 
-                            backgroundColor: '#17a2b8', // Color distintivo (azul/cian)
-                            color: 'white', 
-                            cursor: 'pointer',
-                            fontSize: '1em',
-                            fontWeight: 'bold'
-                        }}
+                        className="btn-create-publication" 
+                        style={{ /* ... estilos ... */ }}
                     >
                         Crear Publicación 
                     </button>
@@ -75,19 +100,31 @@ function Home() {
 
             {/* Renderizado condicional del formulario o de la interfaz de lista */}
             {showPublishForm ? (
-                // Cuando está abierto, muestra el formulario de publicación
                 <div className="publish-overlay">
                     <ProductPublish 
-                    onClose={handleClosePublishForm} 
-                    onProductCreated={handleProductCreation}
+                        onClose={handleClosePublishForm} 
+                        onProductCreated={handleProductCreation}
                     />
                 </div>
             ) : (
                 <>
-                    {/* Cuando está cerrado, muestra la barra de filtros y la cuadrícula de productos */}
                     <FilterBar /> 
-                    <ProductGrid products={products}/> 
+                    {/* PASAMOS LA FUNCIÓN DE CLIC A LA CUADRÍCULA */}
+                    <ProductGrid 
+                        products={products} 
+                        onProductSelect={handleCardClick} // <--- CORRECCIÓN DE LLAMADA
+                    /> 
                 </>
+            )}
+            
+            {/* Renderizado del Modal de Detalles */}
+            {selectedProduct && (
+                <ProductDetailModal 
+                    product={selectedProduct} 
+                    onClose={handleCloseModal} 
+                    onDelete={handleDeleteProduct} // Función para llamar al backend DELETE
+                    currentUserId={currentUserId} // ID del usuario logueado para verificación
+                />
             )}
         </div>
     );
