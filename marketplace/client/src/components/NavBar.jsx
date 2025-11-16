@@ -1,88 +1,73 @@
-import FilterBar from "./FilterBar.jsx";
-import ProductGrid from "./ProductGrid.jsx";
+// Eliminamos los imports de FilterBar y ProductGrid que no se usan
+import React from 'react';
+import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 
-const DEMO_PRODUCTS = [
-  {
-    id: "p-001",
-    name: "Cámara Mirrorless",
-    price: 799.99,
-    location: "Ambato",
-    category: "Electrónica",
-    thumbnail: "https://picsum.photos/seed/cam/600/600",
-    publishedAt: "2025-10-01",
-  },
-  {
-    id: "p-002",
-    name: "Silla Ergonómica Pro",
-    price: 199.9,
-    location: "Quito",
-    category: "Hogar",
-    thumbnail: "https://picsum.photos/seed/chair/600/600",
-    publishedAt: "2025-09-28",
-  },
-  {
-    id: "p-003",
-    name: "Zapatillas Running",
-    price: 89.5,
-    location: "Cuenca",
-    category: "Deportes",
-    thumbnail: "https://picsum.photos/seed/shoes/600/600",
-    publishedAt: "2025-10-10",
-  },
-  {
-    id: "p-004",
-    name: "Smartphone XPro",
-    price: 999.0,
-    location: "Guayaquil",
-    category: "Electrónica",
-    thumbnail: "https://picsum.photos/seed/phone/600/600",
-    publishedAt: "2025-10-07",
-  },
-  {
-    id: "p-005",
-    name: "Guitarra Acústica",
-    price: 145.0,
-    location: "Latacunga",
-    category: "Música",
-    thumbnail: "https://picsum.photos/seed/guitar/600/600",
-    publishedAt: "2025-09-15",
-  },
-  {
-    id: "p-006",
-    name: "Cafetera Espresso",
-    price: 120.0,
-    location: "Riobamba",
-    category: "Hogar",
-    thumbnail: "https://picsum.photos/seed/coffee/600/600",
-    publishedAt: "2025-10-05",
-  },
-];
+const NavBar = () => {
+  const { isAuthenticated, user, logout, loading } = useAuth();
 
-export default function Home() {
-  return (
-    <main className="home">
-      <section className="hero">
-        <div className="container hero__content">
-          <div>
-            <h1>Explora productos y servicios</h1>
-            <p className="hero__subtitle">
-              Filtra por categoría, precio o ubicación. (Demo visual — sin lógica aún)
-            </p>
-          </div>
-          <picture className="hero__image">
-            <img
-              src="https://picsum.photos/seed/market/960/520"
-              alt="Banner marketplace"
-              loading="lazy"
-            />
-          </picture>
+  // 1. Si estamos cargando el usuario, mostrar un 'Cargando...'
+  if (loading) {
+    return (
+      <nav className="navbar">
+        <div className="navbar-logo">
+          <Link to="/">Marketplace</Link>
         </div>
-      </section>
+        <div className="navbar-links">
+          <span>Cargando...</span>
+        </div>
+      </nav>
+    );
+  }
 
-      <section className="container section">
-        <FilterBar />
-        <ProductGrid products={DEMO_PRODUCTS} />
-      </section>
-    </main>
+  // 2. Si NO está autenticado (y no está cargando)
+  if (!isAuthenticated && !loading) {
+    return (
+      <nav className="navbar">
+        <div className="navbar-logo">
+          <Link to="/">Marketplace</Link>
+        </div>
+        <div className="navbar-links">
+          <Link to="/login">Iniciar Sesión</Link>
+          <Link to="/register">Registrarse</Link>
+        </div>
+      </nav>
+    );
+  }
+
+  // 3. Si ESTÁ autenticado (y no está cargando)
+  // Nos aseguramos que 'user' no sea null antes de intentar leerlo
+  return (
+    <nav className="navbar">
+      <div className="navbar-logo">
+        <Link to="/">Marketplace</Link>
+      </div>
+      <div className="navbar-links">
+        {user ? (
+          <>
+            <span>¡Hola, {user.name}!</span>
+
+            {/* Link para Vendedores (rol 'user') */}
+            {user.role === 'user' && (
+              <Link to="/publish">Publicar Artículo</Link>
+            )}
+
+            {/* Link para Admin y Moderador */}
+            {(user.role === 'admin' || user.role === 'moderator') && (
+              <Link to="/admin">Panel de Admin</Link>
+            )}
+
+            <button onClick={logout} className="navbar-button">
+              Cerrar Sesión
+            </button>
+          </>
+        ) : (
+          // Fallback de seguridad si 'user' es null
+          <Link to="/login">Iniciar Sesión</Link>
+        )}
+      </div>
+    </nav>
   );
-}
+};
+
+export default NavBar;

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import "./login.css";               // Ojo: en tu repo el nombre del CSS es lower-case
+import "./login.css";
 import Helper from "../components/Helper";
-
+import { useAuth } from '../context/AuthContext'; // <--- ¡MUY IMPORTANTE!
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -10,7 +10,10 @@ const Login = () => {
   const [robotMessage, setRobotMessage] = useState("¡Hola! Bienvenido 👋");
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  
   const navigate = useNavigate();
+  // 1. OBTENEMOS LA FUNCIÓN 'login' DEL CONTEXTO
+  const { login } = useAuth(); 
 
   useEffect(() => {
     const t = setTimeout(() => setRobotMessage("Ingresa tu correo y contraseña"), 3000);
@@ -35,19 +38,22 @@ const Login = () => {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        // NO navega si backend dice 401/400/500
         setErrorMsg(data?.error || "Credenciales inválidas");
         setRobotMessage("Credenciales inválidas. Inténtalo otra vez.");
         setLoading(false);
         return;
       }
 
-      // Login OK: guarda token y user
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
+      // --- 2. ¡ESTA ES LA LÍNEA CLAVE QUE ARREGLA EL NAVBAR! ---
+      // Usamos el contexto para avisarle a toda la app que iniciamos sesión.
+      login(data.user, data.token);
+      // --------------------------------------------------------
 
       setRobotMessage(`¡Bienvenido, ${data.user.name}!`);
-      navigate("/home");
+      
+      // 3. Navegamos a "/" (tu Home)
+      navigate("/home"); 
+
     } catch (err) {
       setErrorMsg("Error de red. Verifica que la API esté corriendo en :4000");
     } finally {
@@ -58,10 +64,9 @@ const Login = () => {
   return (
     <div className="login-page">
       <Helper message={robotMessage} />
-
       <div className="login-container">
         <h2>Iniciar sesión</h2>
-
+        
         <form onSubmit={handleSubmit}>
           <div className="input-group">
             <label htmlFor="email">Correo</label>
@@ -75,7 +80,6 @@ const Login = () => {
               required
             />
           </div>
-
           <div className="input-group">
             <label htmlFor="password">Contraseña</label>
             <input
@@ -88,9 +92,7 @@ const Login = () => {
               required
             />
           </div>
-
           {errorMsg && <p style={{ color: "crimson", marginBottom: 12 }}>{errorMsg}</p>}
-
           <button type="submit" className="login-button" disabled={loading}>
             {loading ? "Validando..." : "Ingresar"}
           </button>

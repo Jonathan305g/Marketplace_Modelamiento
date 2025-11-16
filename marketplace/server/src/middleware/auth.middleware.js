@@ -24,8 +24,17 @@ export const authRequired = (req, res, next) => {
                 return res.status(403).json({ message: 'Token no válido o expirado' });
             }
 
-            // Adjuntar el ID del usuario al objeto de la solicitud
-            req.userId = decoded.id; 
+            // 1. Verificamos el estado del usuario
+            if (decodedUser.status !== 'active') {
+                return res.status(403).json({ message: 'La cuenta de usuario está suspendida.' });
+            }
+
+            // 2. Adjuntamos la información del usuario al objeto 'req'
+            // Esto nos da acceso a req.userId, req.userRole, etc. en los controladores
+            req.userId = decodedUser.id;
+            req.userRole = decodedUser.role;
+            req.userStatus = decodedUser.status;
+            
             next();
         });
     } catch (error) {

@@ -36,7 +36,7 @@ export const createProduct = async (req, res) => {
             const validUrls = imageUrls.filter(url => url && url.trim() !== '');
             
             const imageValues = validUrls.map(url => 
-                `(${productId}, '${url}')`
+                `(${productId}, ${pool.escapeLiteral(url)})`
             ).join(', ');
             
             if (imageValues) {
@@ -65,20 +65,143 @@ export const createProduct = async (req, res) => {
 
 // --- R E A D (Ejemplo de obtener todos los productos visibles) ---
 export const getProducts = async (req, res) => {
+    const { category, location, min_price, max_price, search } = req.query;
+
+    let query = `
+        SELECT 
+            p.id, p.name, p.description, p.price, p.category, p.location, p.created_at,
+            p.user_id,
+            COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
+        FROM products p
+        LEFT JOIN product_images pi ON p.id = pi.product_id
+        WHERE p.state = 'visible' 
+    `;
+    
+    const params = [];
+    let paramIndex = 1;
+
+    if (category) {
+        query += ` AND p.category = $${paramIndex++}`;
+        params.push(category);
+    }
+    if (location) {
+        query += ` AND p.location ILIKE $${paramIndex++}`; // ILIKE para case-insensitive
+        params.push(`%${location}%`);
+    }
+    if (min_price) {
+        query += ` AND p.price >= $${paramIndex++}`;
+        params.push(min_price);
+    }
+    if (max_price) {
+        query += ` AND p.price <= $${paramIndex++}`;
+        params.push(max_price);
+    }
+     if (search) {
+        // Búsqueda simple en nombre y descripción
+        query += ` AND (p.name ILIKE $${paramIndex} OR p.description ILIKE $${paramIndex})`;
+        params.push(`%${search}%`);
+        paramIndex++;
+    }
+
+    query += `
+        GROUP BY p.id
+        ORDER BY p.created_at DESC;
+    `;
+
+    try {
+        const result = await pool.query(query, params);
+        res.status(200).json(result.rows);
+    } catch (error) {
+        console.error("Error al obtener productos con filtros:", error);
+        res.status(500).json({ message: 'Error al obtener productos.' });
+    }
+};
+
+// --- R E A D (Obtener UN Producto por ID - Comprador/Público) ---
+// --- NUEVA FUNCIÓN ---
+export const getProductById = async (req, res) => {
+    const { id } = req.params;
     try {
         const result = await pool.query(`
             SELECT 
-                p.id, p.name, p.description, p.price, p.category, p.location,
+                p.id, p.name, p.description, p.price, p.category, p.location, p.type, p.created_at,
+                p.user_id, -- Opcional: para mostrar "Vendido por"
+                u.name as seller_name, -- Opcional: nombre del vendedor
                 COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
             FROM products p
             LEFT JOIN product_images pi ON p.id = pi.product_id
-            WHERE p.state = 'visible'
-            GROUP BY p.id
-            ORDER BY p.created_at DESC;
-        `);
-        res.status(200).json(result.rows);
+            LEFT JOIN users u ON p.user_id = u.id -- Opcional: unir con usuarios
+            WHERE p.id = $1 AND p.state = 'visible'
+            GROUP BY p.id, u.name;
+        `, [id]);
+        
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'Producto no encontrado o no está visible.' });
+        }
+        
+        res.status(200).json(result.rows[0]);
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener productos.' });
+         console.error("Error al obtener producto por ID:", error);
+        res.status(500).json({ message: 'Error al obtener el producto.' });
+    }
+};
+
+
+// --- U P D A T E (Actualizar Producto - Vendedor) ---
+// --- NUEVA FUNCIÓN ---
+export const updateProduct = async (req, res) => {
+    const { id } = req.params; // ID del producto
+    const userId = req.userId; // ID del vendedor (autenticado)
+    
+    // Campos que el vendedor puede editar
+    const { name, description, price, category, location, availability, type, state } = req.body;
+
+    // (Aquí iría una validación más robusta de los campos entrantes)
+    if (!name || !price) {
+         return res.status(400).json({ message: 'Nombre y Precio son obligatorios.' });
+    }
+
+    try {
+        // La consulta verifica que el ID del producto ($1) y el ID del usuario ($2) coincidan
+        const productQuery = `
+            UPDATE products SET 
+                name = $3,
+                description = $4,
+                price = $5,
+                category = $6,
+                location = $7,
+                availability = $8,
+                type = $9,
+                state = $10
+            WHERE id = $1 AND user_id = $2
+            RETURNING *; 
+        `;
+        
+        const result = await pool.query(productQuery, [
+            id, 
+            userId,
+            name,
+            description,
+            price,
+            category,
+            location,
+            availability,
+            type,
+            state || 'visible' // El vendedor puede ocultarlo (ej: 'oculto')
+        ]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ message: 'Producto no encontrado o no autorizado para editar.' });
+        }
+        
+        // (Opcional: aquí podrías manejar la actualización de imágenes, 
+        // borrando las anteriores e insertando nuevas)
+
+        res.status(200).json(result.rows[0]);
+
+    } catch (error) {
+        console.error('Error al actualizar el producto:', error);
+        res.status(500).json({ message: 'Error interno del servidor al actualizar el producto.' });
     }
 };
 // --- D E L E T E (Eliminar Producto) ---

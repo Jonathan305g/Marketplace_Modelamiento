@@ -1,7 +1,9 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext'; // <-- IMPORTAR
 
 // Aceptamos la nueva prop: onClick
-export default function ProductCard({ product, onClick }) { 
+export default function ProductCard({ product, onClick, refreshProducts }) { 
+  const { user, isAuthenticated } = useAuth();
   const { 
     name, 
     price, 
@@ -11,14 +13,78 @@ export default function ProductCard({ product, onClick }) {
     material, 
     images, 
     created_at,
+    user_id // <-- ¡IMPORTANTE!
   } = product || {};
 
   const firstImage = (images && images.length > 0) ? images[0] : null;
   const dateString = created_at ? new Date(created_at).toLocaleDateString() : 'N/A';
   const priceDisplay = price ? price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00';
 
+  // --- 1. FUNCIÓN AYUDANTE PARA OBTENER HEADERS CON TOKEN ---
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token'); // Leemos el token que guardó el login
+    return {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}` // Formato OBLIGATORIO
+    };
+  };
+
+  // --- Handlers Corregidos ---
+  const handleEdit = (e) => {
+    e.stopPropagation(); 
+    // TODO: Implementar navegación a página de edición
+    alert(`EDITAR: ${product.name} (ID: ${product.id})`);
+  };
+
+  const handleDelete = async (e) => {
+    e.stopPropagation();
+    if (window.confirm(`¿Seguro que quieres eliminar "${product.name}"?`)) {
+      try {
+        // --- 2. CORRECCIÓN: Usar fetch con Headers de Autorización ---
+        const res = await fetch(`http://localhost:4000/api/products/${product.id}`, {
+          method: 'DELETE',
+          headers: getAuthHeaders() // <-- AÑADIDO
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || 'Error del servidor');
+        }
+
+        alert('Producto eliminado');
+        if (refreshProducts) refreshProducts();
+      } catch (err) {
+        alert('Error al eliminar: ' + (err.message || 'Error'));
+      }
+    }
+  };
+
+  const handleModerate = async (e, newState) => {
+    e.stopPropagation();
+    if (window.confirm(`¿Cambiar estado de "${product.name}" a "${newState}"?`)) {
+      try {
+        // --- 3. CORRECCIÓN: Usar fetch con Headers de Autorización ---
+        const res = await fetch(`http://localhost:4000/api/admin/products/${product.id}/state`, {
+          method: 'PUT',
+          headers: getAuthHeaders(), // <-- AÑADIDO
+          body: JSON.stringify({ state: newState })
+        });
+
+        if (!res.ok) {
+          const errData = await res.json();
+          throw new Error(errData.message || 'Error del servidor');
+        }
+
+        alert('Estado del producto actualizado');
+        if (refreshProducts) refreshProducts(); 
+      } catch (err) {
+        alert('Error al moderar: ' + (err.message || 'Error'));
+      }
+    }
+  };
+
   return (
-    // CAMBIO CLAVE: Hacemos todo el <article> clickeable.
+    // Tu JSX está perfecto, no se necesita cambiar nada aquí
     <article 
         className="card product" 
         onClick={onClick} 
@@ -27,12 +93,11 @@ export default function ProductCard({ product, onClick }) {
         onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
     >
       <div className="product__image">
-        {/* ... Lógica y tag <img> existentes ... */}
         <img 
           src={firstImage || 'https://via.placeholder.com/180?text=Sin+Imagen'} 
           alt={`Imagen de ${name || 'Producto'}`} 
           loading="lazy" 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} // <--- CLAVE PARA QUE SE VEA BIEN
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           onError={(e) => { 
             e.target.onerror = null; 
             e.target.src="https://via.placeholder.com/180?text=Error+Carga"; 
@@ -46,19 +111,41 @@ export default function ProductCard({ product, onClick }) {
       <div className="product__body" style={{ padding: '15px' }}>
         <h3 className="product__title" title={name} style={{ margin: '0 0 5px 0', fontSize: '1.2em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</h3>
 
-        {/* Información clave visible */}
         <div className="product__details" style={{ fontSize: '0.9em', color: '#555', marginBottom: '8px' }}>
           {size && <span style={{ marginRight: '10px' }}>Talla: <strong>{size}</strong></span>}
           {material && <span>Material: <strong>{material}</strong></span>}
         </div>
         
-        {/* Precio y botón de acción */}
         <div className="product__footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
           <span className="price" style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#28a745' }}>${priceDisplay}</span>
           <button className="btn btn--sm btn--ghost" style={{ border: '1px solid #17a2b8', color: '#17a2b8', padding: '5px 10px', borderRadius: '4px', background: 'white' }}>Ver Detalle</button>
         </div>
 
-        {/* Meta información */}
+        
+        {/* --- Botones de Acción (Tu JSX está bien) --- */}
+        {isAuthenticated && (
+          <div className="product-actions" style={{ marginTop: '10px', display: 'flex', gap: '5px', justifyContent: 'space-between' }}>
+            
+            {/* 1. Botones de VENDEDOR (Dueño) */}
+            {user.id === user_id && (
+              <div className="seller-actions" style={{ display: 'flex', gap: '5px' }}>
+                <button onClick={handleEdit} className="btn-edit" style={{ background: '#ffc107', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Editar</button>
+                <button onClick={handleDelete} className="btn-delete" style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Eliminar</button>
+              </div>
+            )}
+
+            {/* 2. Botones de MODERADOR/ADMIN */}
+            {(user.role === 'admin' || user.role === 'moderator') && user.id !== user_id && (
+              <div className="moderator-actions" style={{ display: 'flex', gap: '5px', marginLeft: 'auto' }}>
+                <button onClick={(e) => handleModerate(e, 'oculto')} className="btn-hide" style={{ background: '#6c757d', color: 'white', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Ocultar</button>
+                <button onClick={(e) => handleModerate(e, 'suspendido')} className="btn-suspend" style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Suspender</button>
+              </div>
+            )}
+          </div>
+        )}
+        {/* --- FIN DE LOS BOTONES DE ACCIÓN --- */}
+
+
         <div className="product__meta" style={{ fontSize: '0.8em', color: '#888', marginTop: '10px' }}>
           <span className="badge" style={{ backgroundColor: '#f0f0f0', padding: '2px 6px', borderRadius: '3px', marginRight: '5px' }}>{category || 'General'}</span>
           <span className="muted">{location}</span>
