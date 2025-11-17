@@ -5,6 +5,8 @@ import {
     getProductById,
     updateProduct,
     deleteProduct,
+    toggleFavorite,
+    getFavoriteProducts
 
 } from './product.controller.js';
 import { authRequired } from './middleware/auth.middleware.js'; 
@@ -22,5 +24,9 @@ router.post('/products', authRequired, createProduct);
 router.put('/products/:id', authRequired, updateProduct);
 // Ruta protegida para la eliminación
 router.delete('/products/:id', authRequired, deleteProduct);
+// Usamos POST para el "toggle" ya que crea/elimina un estado
+router.post('/products/:id/favorite', authRequired, toggleFavorite);
+// GET para obtener la lista de productos favoritos del usuario logueado
+router.get('/favorites', authRequired, getFavoriteProducts);
 
 export default router;

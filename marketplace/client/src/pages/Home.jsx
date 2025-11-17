@@ -1,28 +1,29 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 import FilterBar from '../components/FilterBar'; 
 import ProductGrid from '../components/ProductGrid';
-import ProductPublish from '../components/ProductPublish'; 
 import ProductDetailModal from '../components/ProductDetailModal';
 
 function Home() {
     // ESTADOS
-    const [showPublishForm, setShowPublishForm] = useState(false);
     const [products, setProducts] = useState([]);
     const [selectedProduct, setSelectedProduct] = useState(null);
-    
+    const navigate = useNavigate();
+
     // ID del usuario actual para la lógica de "dueño del producto" en el modal
     const currentUserId = localStorage.getItem('userId');
     
     // FUNCIONES ASÍNCRONAS Y CALLBACKS
 
-    const fetchProducts = async () => {
-        console.log('Recargando productos...');
+    const fetchProducts = async (filters = {}) => {
+        console.log('Recargando productos...', filters);
         try {
-            const response = await fetch('http://localhost:4000/api/products'); 
-            const data = await response.json();
-            setProducts(data);
+            const res = await api.get('/products', { params: filters });
+            setProducts(res.data || []);
         } catch (error) {
-            console.error("Error al cargar los productos:", error);
+            // Mostrar detalle de error para depuración
+            console.error('Error al cargar los productos:', error?.response?.status, error?.response?.data || error.message || error);
         }
     };
     
@@ -51,21 +52,16 @@ function Home() {
             alert('Error de conexión o fallo al eliminar.');
         }
     };
+
+    //Handler para el botón "Editar" de la Card ---
+    const handleEditClick = (product) => {
+        // Navegar a la ruta de publicar con el producto en el estado (la ruta está protegida)
+        navigate('/publish', { state: { productToEdit: product } });
+    };
     
     // FUNCIONES DE VISTA/EVENTOS
 
-    const handleCreatePublicationClick = () => {
-        setShowPublishForm(true);
-    };
-
-    const handleClosePublishForm = () => {
-        setShowPublishForm(false);
-    };
-    
-    const handleProductCreation = () => {
-        fetchProducts(); 
-        setShowPublishForm(false); 
-    };
+    // Nota: El acceso a la ruta /publish se hace desde la NavBar. Eliminamos el botón "Crear Publicación" para evitar duplicados.
 
     // Función para abrir el modal al hacer clic en la tarjeta (la pasa a ProductGrid)
     const handleCardClick = (product) => {
@@ -85,37 +81,15 @@ function Home() {
     
     return (
         <div className="home-container">
-            {/* Contenedor del botón de publicación */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '15px 0' }}>
-                {!showPublishForm && (
-                    <button 
-                        onClick={handleCreatePublicationClick} 
-                        className="btn-create-publication" 
-                        style={{ /* ... estilos ... */ }}
-                    >
-                        Crear Publicación 
-                    </button>
-                )}
-            </div>
-
-            {/* Renderizado condicional del formulario o de la interfaz de lista */}
-            {showPublishForm ? (
-                <div className="publish-overlay">
-                    <ProductPublish 
-                        onClose={handleClosePublishForm} 
-                        onProductCreated={handleProductCreation}
-                    />
-                </div>
-            ) : (
-                <>
-                    <FilterBar /> 
-                    {/* PASAMOS LA FUNCIÓN DE CLIC A LA CUADRÍCULA */}
-                    <ProductGrid 
-                        products={products} 
-                        onProductSelect={handleCardClick} // <--- CORRECCIÓN DE LLAMADA
-                    /> 
-                </>
-            )}
+            {/* El botón para publicar se encuentra ahora en la NavBar; aquí mostramos solo el contenido principal */}
+            <FilterBar onApply={fetchProducts} onReset={() => fetchProducts({})} /> 
+            {/* PASAMOS LA FUNCIÓN DE CLIC A LA CUADRÍCULA */}
+            <ProductGrid 
+                products={products} 
+                onProductSelect={handleCardClick} // <--- CORRECCIÓN DE LLAMADA
+                refreshProducts={fetchProducts}
+                onEditProduct={handleEditClick}
+            /> 
             
             {/* Renderizado del Modal de Detalles */}
             {selectedProduct && (

@@ -1,0 +1,27 @@
+:root{
+  --bg:#f9fafb;
+  --card:#ffffff;
+  --muted:#6b7280;
+}
+
+.admin-panel{
+  padding:16px;
+}
+
+.admin-panel h2{
+  margin-bottom:12px;
+}
+
+.admin-panel table{
+  width:100%;
+  border-collapse:collapse;
+  background:var(--card);
+}
+
+.admin-panel th, .admin-panel td{
+  padding:8px 10px;
+  border:1px solid #e5e7eb;
+  text-align:left;
+}
+
+.admin-error{ color:crimson; padding:12px; }

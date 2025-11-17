@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import "./login.css";
 import Helper from "../components/Helper";
 import { useAuth } from '../context/AuthContext'; // <--- ¡MUY IMPORTANTE!
@@ -99,8 +99,8 @@ const Login = () => {
         </form>
 
         <div className="links">
-          <a href="/forgot-password" className="forgot-password">¿Olvidaste tu contraseña?</a>
-          <a href="/register" className="create-account">Crear cuenta</a>
+          <Link to="/forgot-password" className="forgot-password">¿Olvidaste tu contraseña?</Link>
+          <Link to="/register" className="create-account">Crear cuenta</Link>
         </div>
       </div>
     </div>

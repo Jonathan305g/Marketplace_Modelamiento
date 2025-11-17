@@ -1,12 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import CATEGORIES from '../constants/categories';
+import { useLocation, useNavigate } from 'react-router-dom';
+import api from '../services/api';
 // Importa tus estilos CSS si tienes uno dedicado al formulario (ej: './productPublish.css')
 
-const ProductPublish = ({ onClose }) => {
-    // 1. ESTADO: Añadimos 'size' y 'material'
+const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProductToEdit }) => {
+    const location = useLocation();
+    const navigate = useNavigate();
+
+    // Soportamos pasar productToEdit por props (cuando se usa como componente) o por location.state (cuando se navega a /publish)
+    const productToEdit = propProductToEdit || (location.state && location.state.productToEdit) || null;
+    const isEditMode = Boolean(productToEdit);
+    // 1. ESTADO: Añadimos 'size' y 'category' (reemplazando el antiguo campo 'material')
     const [productData, setProductData] = useState({
         name: '', // Nombre del producto
         size: '', // NUEVO: Tamaño (ej: S, M, L o dimensiones)
-        material: '', // NUEVO: Material (ej: Algodón, Cuero, Madera)
+        // material removed; use `category` below
         price: '', // Precio
         description: '', // Descripción
         category: '',
@@ -16,6 +25,22 @@ const ProductPublish = ({ onClose }) => {
     });
     const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
     
+    useEffect(() => {
+        if (isEditMode && productToEdit) {
+            setProductData({
+                name: productToEdit.name || '',
+                size: productToEdit.size || '',
+                price: productToEdit.price || '',
+                description: productToEdit.description || '',
+                category: productToEdit.category || '',
+                location: productToEdit.location || '',
+                // 'images' viene del backend, 'imageUrls' es lo que usa el form
+                imageUrls: productToEdit.images && productToEdit.images.length > 0 ? productToEdit.images : [''],
+                type: productToEdit.type || 'producto',
+            });
+        }
+    }, [productToEdit, isEditMode]);
+
     // Función genérica para manejar cambios en todos los inputs (excepto imágenes)
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -46,7 +71,7 @@ const ProductPublish = ({ onClose }) => {
         e.preventDefault();
         setStatusMessage({ type: '', text: '' });
 
-        const token = localStorage.getItem('token'); 
+        const token = localStorage.getItem('token');
         if (!token) {
             setStatusMessage({ type: 'error', text: 'Debes iniciar sesión para publicar un producto.' });
             return;
@@ -55,7 +80,7 @@ const ProductPublish = ({ onClose }) => {
         // Filtra URLs vacías antes de enviar
         const filteredImageUrls = productData.imageUrls.filter(url => url.trim() !== '');
         // Convertimos el precio. Usamos replace para aceptar ',' como separador decimal.
-        const priceToNumber = parseFloat(productData.price.replace(',', '.'));
+        const priceToNumber = parseFloat(String(productData.price).replace(',', '.'));
         
         if (isNaN(priceToNumber) || priceToNumber <= 0) {
              setStatusMessage({ type: 'error', text: 'El precio debe ser un número válido mayor a cero.' });
@@ -69,38 +94,59 @@ const ProductPublish = ({ onClose }) => {
         };
 
         try {
-            const response = await fetch('http://localhost:4000/api/products', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`, 
-                },
-                body: JSON.stringify({ ...productData, imageUrls: filteredImageUrls }),
-            });
+            // --- LÓGICA MODIFICADA: O actualiza (PUT) o crea (POST) ---
+            if (isEditMode) {
+                // MODO EDICIÓN (PUT)
+                const productId = productToEdit.id || productToEdit._id;
+                if (!productId) throw new Error('ID de producto inválido');
 
-            const data = await response.json();
+                // En edición enviamos todos los campos (incluyendo imageUrls) para actualizar las imágenes
+                const updateData = dataToSend;
+                const resp = await api.put(`/products/${productId}`, updateData);
+                const updatedProduct = resp.data?.product || resp.data;
+                setStatusMessage({ type: 'success', text: `Producto "${updatedProduct?.name || ''}" actualizado con éxito!` });
 
-            if (response.ok) {
-                setStatusMessage({ type: 'success', text: `Producto "${data.name}" publicado con éxito!` });
-                setTimeout(() => {
-                    if (onClose) onClose(); 
-                }, 1500); 
-                // Limpiar el estado al publicar con éxito
-                setProductData({
-                    name: '', size: '', material: '', price: 0, description: '', 
-                    category: '', location: '', imageUrls: [''], type: 'producto',
-                });
             } else {
-                setStatusMessage({ type: 'error', text: data.message || 'Error desconocido' });
+                // MODO CREACIÓN (POST)
+                const response = await api.post('/products', dataToSend);
+                const created = response.data?.product || response.data;
+                setStatusMessage({ type: 'success', text: `Producto "${created?.name || ''}" publicado con éxito!` });
             }
+            // --- FIN DE LÓGICA MODIFICADA ---
+
+            // Llamamos a la función de 'Home' para cerrar el modal y refrescar
+            setTimeout(() => {
+                if (onProductSubmitted) {
+                    onProductSubmitted();
+                } else {
+                    // Si se usó la ruta /publish, navegamos de vuelta al home
+                    navigate('/home');
+                }
+            }, 1200);
+
+            // No limpiamos el formulario aquí, se limpia al cerrar (en Home.jsx)
+            
         } catch (err) {
-            setStatusMessage({ type: 'error', text: 'Error de red. Verifica que el servidor esté activo.' });
+            // Logueo más detallado para depuración
+            try {
+                console.error('Error creating/updating product (axios):', err.toJSON ? err.toJSON() : err);
+            } catch (e) {
+                console.error('Error creating/updating product (raw):', err);
+            }
+            const status = err.response?.status;
+            const data = err.response?.data;
+            console.error('Response status:', status);
+            console.error('Response data:', data);
+
+            // Mensaje para el usuario: preferir mensaje del servidor, si existe
+            const serverMsg = data?.message || data?.error || err.message || 'Error de red.';
+            setStatusMessage({ type: 'error', text: `(${status || '??'}) ${serverMsg}` });
         }
     };
 //
     return (
         <div className="product-publish-form-container" style={{padding: '20px', border: '1px solid #ccc', borderRadius: '8px', maxWidth: '600px', margin: '30px auto', position: 'relative'}}>
-            <h2>Crear Nueva Publicación</h2>
+            <h2>{isEditMode ? 'Editar Publicación' : 'Crear Nueva Publicación'}</h2>
             
             {/* Botón de cerrar */}
             {onClose && (
@@ -128,31 +174,34 @@ const ProductPublish = ({ onClose }) => {
                     />
                 </div>
 
-                {/* 2. Tamaño y Material (en línea) */}
                 <div style={{display: 'flex', gap: '20px', marginBottom: '15px'}}>
-                    <div style={{flex: 1}}>
-                        <label htmlFor="size" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Tamaño:</label>
-                        <input
-                            type="text"
-                            id="size"
-                            name="size"
-                            value={productData.size}
-                            onChange={handleChange}
-                            style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
-                        />
-                    </div>
-                    <div style={{flex: 1}}>
-                        <label htmlFor="material" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Material:</label>
-                        <input
-                            type="text"
-                            id="material"
-                            name="material"
-                            value={productData.material}
-                            onChange={handleChange}
-                            style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
-                        />
-                    </div>
-                </div>
+                                <div style={{flex: 1}}>
+                                    <label htmlFor="size" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Tamaño:</label>
+                                    <input
+                                        type="text"
+                                        id="size"
+                                        name="size"
+                                        value={productData.size}
+                                        onChange={handleChange}
+                                        style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
+                                    />
+                                </div>
+                                <div style={{flex: 1}}>
+                                    <label htmlFor="category" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Categoría:</label>
+                                    <select
+                                        id="category"
+                                        name="category"
+                                        value={productData.category}
+                                        onChange={handleChange}
+                                        style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
+                                    >
+                                        <option value="">Selecciona categoría</option>
+                                        {CATEGORIES.map((c) => (
+                                            <option key={c} value={c}>{c}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            </div>
 
                 {/* 3. Precio */}
                 <div style={{marginBottom: '15px'}}>
@@ -216,7 +265,7 @@ const ProductPublish = ({ onClose }) => {
                     type="submit"
                     style={{ padding: '12px 25px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '100%', marginTop: '20px', fontSize: '1.1em' }}
                 >
-                    Publicar Producto
+                    {isEditMode ? 'Actualizar Publicación' : 'Publicar Producto'}
                 </button>
             </form>
         </div>

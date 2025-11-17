@@ -67,7 +67,7 @@ const Register = () => {
         // ✅ Registro OK: NO autologear, NO guardar token. Redirigir a /login.
         setError("");
         setSuccess("Cuenta creada. Ahora inicia sesión…");
-        setTimeout(() => navigate("/login", { replace: true }), 1200);
+        setTimeout(() => navigate("/", { replace: true }), 1200);
       } catch (err) {
         console.error(err);
         setError("No se pudo conectar al servidor");

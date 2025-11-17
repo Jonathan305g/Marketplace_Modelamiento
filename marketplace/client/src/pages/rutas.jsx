@@ -1,11 +1,27 @@
 import React from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import NavBar from "../components/NavBar"; 
+import Register from "./Register";
 import Login from "./components/Login"; // El componente de login
 import Home from "./pages/Home"; // El componente que muestras después del login (Explora productos y servicios)
 import AdminPanel from './AdminPanel'; // <-- IMPORTAR NUEVA PÁGINA
 import ProtectedRoute from './ProtectedRoute'
 import ProductPublish from '../components/ProductPublish';
 import FavoritesPage from './FavoritesPage';
+
+const AppLayout = () => {
+  return (
+    <div className="app-layout">
+      {/* 1. El menú (NavBar) siempre es visible */}
+      <NavBar />
+      
+      {/* 2. <Outlet> renderiza el componente de la ruta hija */}
+      <main className="page-content" style={{ padding: '20px' }}>
+        <Outlet />
+      </main>
+    </div>
+  );
+};
 
 function App() {
   return (

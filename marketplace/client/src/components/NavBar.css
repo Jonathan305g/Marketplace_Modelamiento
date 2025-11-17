@@ -1,0 +1,44 @@
+.navbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 16px;
+  background:#1f2937;
+  color:#fff;
+}
+
+.navbar-logo a{ color:#fff; text-decoration:none; font-weight:600 }
+
+.navbar-links{ display:flex; gap:12px; align-items:center }
+
+.navbar-links a{ color:#e5e7eb; text-decoration:none }
+
+.user-menu{ position:relative }
+.user-button{ background:transparent; border:none; color:#fff; cursor:pointer }
+
+.user-dropdown{
+  position:absolute;
+  right:0;
+  top:36px;
+  background:#fff;
+  color:#111827;
+  border-radius:6px;
+  box-shadow:0 6px 18px rgba(0,0,0,0.12);
+  display:flex;
+  flex-direction:column;
+  min-width:160px;
+  padding:8px 0;
+  z-index:50;
+}
+
+.user-dropdown a, .user-dropdown button{
+  padding:8px 12px;
+  text-align:left;
+  background:transparent;
+  border:none;
+  width:100%;
+}
+
+.user-dropdown a:hover, .user-dropdown button:hover{ background:#f3f4f6 }
+
+.logout-button{ color:#b91c1c; cursor:pointer }

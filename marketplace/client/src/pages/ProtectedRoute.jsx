@@ -15,7 +15,7 @@ function ProtectedRoute({ roles }) {
 
   // 1. No está autenticado
   if (!isAuthenticated && !loading) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   // 2. Está autenticado, pero se requieren roles específicos

@@ -45,6 +45,9 @@ export const AuthProvider = ({ children }) => {
   const login = (userData, token) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
+    // Guardar también el id del usuario para usos directos (ej: Home.jsx)
+    const userId = userData.id || userData._id || userData.userId || '';
+    if (userId) localStorage.setItem('userId', String(userId));
     setUser(userData);
     setIsAuthenticated(true);
   };
@@ -53,6 +56,7 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('userId');
     setUser(null);
     setIsAuthenticated(false);
   };
