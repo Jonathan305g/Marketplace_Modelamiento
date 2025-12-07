@@ -20,7 +20,11 @@ function AppContent() {
   // Muestra una pantalla en blanco (o un spinner) mientras se verifica el estado de autenticación.
   // Esto previene renderizados incorrectos o bucles.
   if (loading) {
-    return null;
+    return (
+      <div style={{ color: '#e7ebf3', padding: '24px', textAlign: 'center' }}>
+        Cargando...
+      </div>
+    );
   }
 
   // Rutas donde no se debe mostrar la barra de navegación
