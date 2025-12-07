@@ -1,7 +1,7 @@
 import React from "react";
 import { BrowserRouter as Router, Route, Routes, useLocation } from "react-router-dom";
 import NavBar from "./components/NavBar";
-import Login from "./components/login"; // Componente de login
+import Login from "./components/login";
 import Home from "./pages/Home";
 import ForgotPassword from "./pages/ForgotPassword";
 import Register from "./pages/Register";
@@ -10,14 +10,21 @@ import ProductPublish from "./components/ProductPublish";
 import FavoritesPage from "./pages/FavoritesPage";
 import AdminPanel from "./pages/AdminPanel";
 import ModerationPanel from "./pages/ModerationPanel";
-import { useAuth } from './context/AuthContext';
+import { useAuth, AuthProvider } from './context/AuthContext';
 
-function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+// Componente que contiene la lógica de las rutas y el renderizado
+function AppContent() {
+  const { isAuthenticated, loading } = useAuth();
   const location = useLocation();
 
-  // No mostrar NavBar en la página de login (ruta '/'), incluso si está autenticado
-  const hideNavOnPaths = ['/', '/login'];
+  // Muestra una pantalla en blanco (o un spinner) mientras se verifica el estado de autenticación.
+  // Esto previene renderizados incorrectos o bucles.
+  if (loading) {
+    return null;
+  }
+
+  // Rutas donde no se debe mostrar la barra de navegación
+  const hideNavOnPaths = ['/', '/login', '/register', '/forgot-password'];
 
   return (
     <>
@@ -26,6 +33,7 @@ function AppRoutes() {
       <Routes>
         {/* Rutas públicas */}
         <Route path="/" element={<Login />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/home" element={<Home />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/register" element={<Register />} />
@@ -36,30 +44,34 @@ function AppRoutes() {
           <Route path="/favorites" element={<FavoritesPage />} />
         </Route>
 
-        {/* Rutas separadas: Admin solo para 'admin' y Moderation para admin/moderator */}
+        {/* Rutas de Admin: solo para rol 'admin' */}
         <Route element={<ProtectedRoute roles={["admin"]} />}>
           <Route path="/admin" element={<AdminPanel />} />
         </Route>
 
+        {/* Rutas de Moderación: para roles 'admin' y 'moderator' */}
         <Route element={<ProtectedRoute roles={["admin", "moderator"]} />}>
           <Route path="/moderation" element={<ModerationPanel />} />
         </Route>
 
-        {/* 404 */}
+        {/* Página no encontrada */}
         <Route path="*" element={<div>404 - Página no encontrada</div>} />
       </Routes>
-      </>
-    );
-  }
+    </>
+  );
+}
 
-  function App() {
-    return (
-      <Router>
-        <AppRoutes />
-      </Router>
-    );
-  }
+// Componente principal que envuelve la aplicación con el Router y el AuthProvider
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppContent />
+      </AuthProvider>
+    </Router>
+  );
+}
 
-  export default App;
+export default App;
 
 

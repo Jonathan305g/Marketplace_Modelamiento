@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import "./Register.css";
 import Helper from "../components/Helper";
+import { useAuth } from '../context/AuthContext';
 
 const Register = () => {
   const [step, setStep] = useState(1);
@@ -14,6 +15,14 @@ const Register = () => {
   const [success, setSuccess] = useState("");   // ✅ mensaje de éxito
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { isAuthenticated, loading: authLoading } = useAuth();
+
+  // PROTECCIÓN: Si ya está autenticado, redirigir a Home
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate('/home', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   const togglePasswordVisibility = () => setPasswordVisible((v) => !v);
 

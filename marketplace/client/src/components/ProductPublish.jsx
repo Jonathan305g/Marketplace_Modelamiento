@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react';
 import CATEGORIES from '../constants/categories';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../services/api';
+import { useAuth } from '../context/AuthContext';
 // Importa tus estilos CSS si tienes uno dedicado al formulario (ej: './productPublish.css')
 
 const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProductToEdit }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { isAuthenticated, user, loading } = useAuth();
 
     // Soportamos pasar productToEdit por props (cuando se usa como componente) o por location.state (cuando se navega a /publish)
     const productToEdit = propProductToEdit || (location.state && location.state.productToEdit) || null;
@@ -20,11 +22,21 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
         description: '', // Descripción
         category: '',
         location: '',
-        imageUrls: [''], // Array de URLs de imágenes
+        imageUrls: [''], 
         type: 'producto',
     });
     const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
     
+    // PROTECCIÓN: Redirigir si no está autenticado
+    useEffect(() => {
+        if (!loading && !isAuthenticated) {
+            setStatusMessage({ type: 'error', text: 'Debes iniciar sesión para publicar un producto.' });
+            setTimeout(() => {
+                navigate('/login', { state: { from: location.pathname } });
+            }, 1500);
+        }
+    }, [isAuthenticated, loading, navigate, location]);
+
     useEffect(() => {
         if (isEditMode && productToEdit) {
             setProductData({
@@ -70,6 +82,13 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatusMessage({ type: '', text: '' });
+
+        // PROTECCIÓN: Verificar autenticación nuevamente antes de enviar
+        if (!isAuthenticated || !user) {
+            setStatusMessage({ type: 'error', text: 'Debes iniciar sesión para publicar un producto.' });
+            navigate('/login', { state: { from: location.pathname } });
+            return;
+        }
 
         const token = localStorage.getItem('token');
         if (!token) {
@@ -146,6 +165,29 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
 //
     return (
         <div className="product-publish-form-container" style={{padding: '20px', border: '1px solid #ccc', borderRadius: '8px', maxWidth: '600px', margin: '30px auto', position: 'relative'}}>
+            {/* PROTECCIÓN: Mostrar estado de carga */}
+            {loading && (
+                <div style={{textAlign: 'center', padding: '20px', fontSize: '1.1em', color: '#666'}}>
+                    Cargando...
+                </div>
+            )}
+
+            {/* PROTECCIÓN: Mostrar si no está autenticado */}
+            {!loading && !isAuthenticated && (
+                <div style={{textAlign: 'center', padding: '20px', fontSize: '1.1em', color: '#d9534f', backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px'}}>
+                    <p>Debes iniciar sesión para publicar un producto.</p>
+                    <button 
+                        onClick={() => navigate('/login')}
+                        style={{marginTop: '10px', padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
+                    >
+                        Ir al Login
+                    </button>
+                </div>
+            )}
+
+            {/* Mostrar formulario solo si está autenticado */}
+            {!loading && isAuthenticated && (
+            <>
             <h2>{isEditMode ? 'Editar Publicación' : 'Crear Nueva Publicación'}</h2>
             
             {/* Botón de cerrar */}
@@ -268,6 +310,8 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                     {isEditMode ? 'Actualizar Publicación' : 'Publicar Producto'}
                 </button>
             </form>
+            </>
+            )}
         </div>
     );
 };

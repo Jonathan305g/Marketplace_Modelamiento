@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "./db.js";
+import { supabase } from "./db.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
@@ -38,8 +38,13 @@ router.post("/register", async (req, res) => {
     }
 
     // valida email repetido
-    const exists = await pool.query("SELECT id FROM users WHERE email=$1", [email]);
-    if (exists.rowCount > 0) {
+    const { data: exists, error: existsError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email);
+    
+    if (existsError) throw existsError;
+    if (exists && exists.length > 0) {
       console.log("[DEBUG] /register: El email ya existe");
       return res.status(409).json({ error: "El email ya está registrado" });
     }
@@ -47,12 +52,14 @@ router.post("/register", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     console.log("[DEBUG] /register: Hash de contraseña creado");
 
-    const insert = await pool.query(
-      "INSERT INTO users(name,email,password_hash) VALUES($1,$2,$3) RETURNING id,name,email,created_at, role, status",
-      [name, email, hash] // 'email' ahora está en minúsculas
-    );
+    const { data: inserted, error: insertError } = await supabase
+      .from('users')
+      .insert([{ name, email, password_hash: hash }])
+      .select('id, name, email, created_at, role, status');
 
-    const user = insert.rows[0];
+    if (insertError) throw insertError;
+    
+    const user = inserted[0];
     const token = signToken(user);
 
     console.log("[DEBUG] /register: Usuario registrado con éxito. ID:", user.id);
@@ -82,13 +89,18 @@ router.post("/login", async (req, res) => {
       return res.status(400).json({ error: "Faltan credenciales" });
     }
 
-    const found = await pool.query("SELECT * FROM users WHERE email=$1", [email]);
-    if (found.rowCount === 0) {
+    const { data: found, error: findError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email);
+
+    if (findError) throw findError;
+    if (!found || found.length === 0) {
       console.log("[DEBUG] /login: Email no encontrado en la BD");
       return res.status(401).json({ error: "Credenciales inválidas" });
     }
 
-    const user = found.rows[0];
+    const user = found[0];
     console.log("[DEBUG] /login: Usuario encontrado. ID:", user.id);
     console.log("[DEBUG] /login: Hash en BD:", user.password_hash);
     

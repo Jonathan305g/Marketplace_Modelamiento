@@ -1,10 +1,18 @@
-import { pool } from './db.js';
+import { supabase } from './db.js';
 
 // --- (ADMIN) Obtener todos los usuarios ---
 export const getAllUsers = async (req, res) => {
     try {
-        const result = await pool.query('SELECT id, name, email, role, status, created_at FROM users ORDER BY id ASC');
-        res.status(200).json(result.rows);
+        const { data: users, error } = await supabase
+            .from('users')
+            .select('id, name, email, role, status, created_at')
+            .order('id', { ascending: true });
+
+        if (error) {
+            throw error;
+        }
+
+        res.status(200).json(users);
     } catch (error) {
         console.error('Error al obtener usuarios:', error);
         res.status(500).json({ message: 'Error interno al obtener usuarios.' });
@@ -26,15 +34,21 @@ export const updateUserRole = async (req, res) => {
     }
 
     try {
-        const result = await pool.query(
-            'UPDATE users SET role = $1 WHERE id = $2 AND role != $3 RETURNING id, name, email, role, status',
-            [role, id, 'admin'] // Impide cambiar a otros admins
-        );
+        const { data: users, error } = await supabase
+            .from('users')
+            .update({ role })
+            .eq('id', id)
+            .neq('role', 'admin')
+            .select('id, name, email, role, status');
 
-        if (result.rowCount === 0) {
+        if (error) {
+            throw error;
+        }
+
+        if (!users || users.length === 0) {
             return res.status(404).json({ message: 'Usuario no encontrado o es otro administrador.' });
         }
-        res.status(200).json(result.rows[0]);
+        res.status(200).json(users[0]);
     } catch (error) {
         console.error('Error al cambiar rol:', error);
         res.status(500).json({ message: 'Error interno al cambiar rol.' });
@@ -51,15 +65,21 @@ export const updateUserStatus = async (req, res) => {
     }
 
     try {
-        const result = await pool.query(
-            'UPDATE users SET status = $1 WHERE id = $2 AND role != $3 RETURNING id, name, email, role, status',
-            [status, id, 'admin']
-        );
+        const { data: users, error } = await supabase
+            .from('users')
+            .update({ status })
+            .eq('id', id)
+            .neq('role', 'admin')
+            .select('id, name, email, role, status');
 
-        if (result.rowCount === 0) {
+        if (error) {
+            throw error;
+        }
+
+        if (!users || users.length === 0) {
             return res.status(404).json({ message: 'Usuario no encontrado o intentas modificar un Administrador.' });
         }
-        res.status(200).json(result.rows[0]);
+        res.status(200).json(users[0]);
     } catch (error) {
         console.error('Error al cambiar status:', error);
         res.status(500).json({ message: 'Error interno al cambiar status.' });
@@ -76,14 +96,20 @@ export const moderateProductState = async (req, res) => {
     }
     
     try {
-        const result = await pool.query(
-            'UPDATE products SET state = $1 WHERE id = $2 RETURNING id, name, state',
-            [state, id]
-        );
-         if (result.rowCount === 0) {
+        const { data: products, error } = await supabase
+            .from('products')
+            .update({ state })
+            .eq('id', id)
+            .select('id, name, state');
+
+        if (error) {
+            throw error;
+        }
+
+        if (!products || products.length === 0) {
             return res.status(404).json({ message: 'Producto no encontrado.' });
         }
-        res.status(200).json(result.rows[0]);
+        res.status(200).json(products[0]);
     } catch (error) {
         console.error('Error al moderar producto:', error);
         res.status(500).json({ message: 'Error interno al moderar producto.' });

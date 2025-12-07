@@ -12,8 +12,15 @@ const Login = () => {
   const [errorMsg, setErrorMsg] = useState("");
   
   const navigate = useNavigate();
-  // 1. OBTENEMOS LA FUNCIÓN 'login' DEL CONTEXTO
-  const { login } = useAuth(); 
+  // 1. OBTENEMOS LA FUNCIÓN 'login' DEL CONTEXTO Y EL ESTADO
+  const { login, isAuthenticated, loading: authLoading } = useAuth(); 
+
+  // PROTECCIÓN: Si ya está autenticado, redirigir a Home
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate('/home', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   useEffect(() => {
     const t = setTimeout(() => setRobotMessage("Ingresa tu correo y contraseña"), 3000);

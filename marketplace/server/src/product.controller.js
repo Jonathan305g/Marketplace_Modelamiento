@@ -1,4 +1,4 @@
-import { pool } from './db.js'; // Importa tu pool de conexión a PG
+import { supabase } from './db.js'; // Importa tu pool de conexión a PG
 
 // --- C R E A T E (Crear Producto) ---
 export const createProduct = async (req, res) => {
