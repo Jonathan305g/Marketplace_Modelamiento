@@ -223,3 +223,245 @@ body{
   font-size: 14px;
   text-align:center;
 }
+
+/* --- CHATBOX --- */
+.chatbox{
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  width: 320px;
+  max-height: 420px;
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 60;
+}
+
+.chatbox__header{
+  height: 44px;
+  padding: 0 12px;
+  display:flex;
+  align-items:center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chatbox__close{
+  border:none;
+  background: transparent;
+  color: var(--muted);
+  cursor:pointer;
+  font-size: 16px;
+}
+
+.chatbox__messages{
+  flex: 1;
+  padding: 8px 10px;
+  overflow-y: auto;
+  background: radial-gradient(circle at top, rgba(56,189,248,.08), transparent 55%);
+}
+
+.chatbox__empty{
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  text-align:center;
+}
+
+.chatbox__message{
+  margin-bottom: 6px;
+  display:flex;
+  flex-direction: column;
+  max-width: 80%;
+}
+
+.chatbox__message--mine{
+  margin-left:auto;
+  align-items: flex-end;
+}
+
+.chatbox__message--other{
+  margin-right:auto;
+  align-items: flex-start;
+}
+
+.chatbox__bubble{
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  line-height: 1.3;
+  background: rgba(56,189,248,.15);
+  border: 1px solid rgba(56,189,248,.3);
+}
+
+.chatbox__message--mine .chatbox__bubble{
+  background: linear-gradient(90deg, var(--brand) 0%, var(--brand-2) 100%);
+  color:#051014;
+}
+
+.chatbox__time{
+  margin-top: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.chatbox__input{
+  border-top: 1px solid var(--border);
+  padding: 6px;
+  display:flex;
+  gap: 6px;
+}
+
+.chatbox__input input{
+  flex:1;
+  height: 34px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background:#0F1320;
+  color: var(--text);
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+/* Responsive: en móviles que se haga más ancho y suba un poco */
+@media (max-width: 640px){
+  .chatbox{
+    width: calc(100% - 32px);
+    right: 16px;
+    left: 16px;
+    bottom: 12px;
+  }
+}
+
+
+/* ----------------------- */
+/*   R E S P O N S I V E   */
+/* ----------------------- */
+
+/* Ajustes generales para tablets */
+@media (max-width: 900px) {
+  body{
+    font-size: 15px;
+  }
+  .section{
+    padding: 20px 0 40px;
+  }
+  .filterbar{
+    padding: 12px;
+    margin: 14px 0 20px;
+  }
+}
+
+/* Navbar y layout en móviles */
+@media (max-width: 768px) {
+  .navbar__inner{
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 8px 0 10px;
+    row-gap: 8px;
+  }
+
+  .brand{
+    justify-content: space-between;
+  }
+
+  .nav{
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .nav::-webkit-scrollbar{
+    height: 4px;
+  }
+  .nav::-webkit-scrollbar-thumb{
+    background: rgba(148,163,184,.4);
+    border-radius: 999px;
+  }
+
+  .auth{
+    justify-self: stretch;
+    justify-content: flex-start;
+  }
+
+  .auth .btn{
+    flex: 1;
+  }
+
+  .hero__content{
+    text-align: center;
+  }
+  .hero__subtitle{
+    max-width: 480px;
+    margin: 0 auto;
+  }
+  .hero__image{
+    max-width: 360px;
+    margin: 10px auto 0;
+  }
+}
+
+/* Filtros y grid en móviles pequeños */
+@media (max-width: 640px) {
+  .container{
+    padding: 0 12px;
+  }
+
+  .filterbar__row{
+    grid-template-columns: 1fr;
+  }
+
+  .filterbar__actions{
+    justify-content: stretch;
+  }
+
+  .filterbar__actions .btn{
+    width: 100%;
+  }
+
+  .product__title{
+    white-space: normal;
+  }
+
+  .product__footer{
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .price{
+    font-size: 16px;
+  }
+}
+
+/* Microajustes para pantallas muy pequeñas */
+@media (max-width: 420px) {
+  .navbar__inner{
+    padding-inline: 4px;
+  }
+
+  .brand__logo{
+    font-size: 20px;
+  }
+  .brand__name{
+    font-size: 14px;
+  }
+
+  .nav__link{
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+
+  .btn, .btn--sm{
+    width: 100%;
+  }
+
+  .section{
+    padding: 18px 0 32px;
+  }
+}

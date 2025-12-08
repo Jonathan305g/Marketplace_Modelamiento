@@ -14,6 +14,8 @@ const Register = () => {
   const [success, setSuccess] = useState("");   // ✅ mensaje de éxito
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const isValidEmail = (email) =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const togglePasswordVisibility = () => setPasswordVisible((v) => !v);
 
@@ -26,6 +28,10 @@ const Register = () => {
         setError("Ingresa nombre y correo");
         return;
       }
+      if (!isValidEmail(email)) {
+        setError('Ingresa un correo válido.');
+      return;
+    }
       setStep(2);
       return;
     }

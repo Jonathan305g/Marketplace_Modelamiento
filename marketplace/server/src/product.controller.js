@@ -1,348 +1,573 @@
-import { pool } from './db.js'; // Importa tu pool de conexión a PG
+import { supabase } from './db.js';
 
+const BANNED_KEYWORDS = [
+  'arma', 'droga', 'explosivo', 'pornografía'
+];
+function contieneProhibido(texto = '') {
+  const lower = texto.toLowerCase();
+  return BANNED_KEYWORDS.some((kw) => lower.includes(kw.toLowerCase()));
+}
 // --- C R E A T E (Crear Producto) ---
 export const createProduct = async (req, res) => {
-    // imageUrls se espera como un array de strings (URLs) desde el frontend
-    const { name, description, price, category, location, imageUrls, type, state } = req.body;
-    const userId = req.userId; // ID obtenido del middleware de autenticación
+  const { name, description, price, category, location, imageUrls, type, state } = req.body;
+  const userId = req.userId;
 
-    if (!userId || !name || !price) {
-        return res.status(400).json({ message: 'Faltan campos obligatorios (Usuario, Nombre, Precio).' });
+  if (!userId || !name || !price) {
+    return res
+      .status(400)
+      .json({ message: 'Faltan campos obligatorios (Usuario, Nombre, Precio).' });
+  }
+  if (contieneProhibido(name) || contieneProhibido(description)) {
+    return res.status(400).json({
+        message: 'El producto contiene palabras o servicios prohibidos.',
+        });
     }
-
-    try {
-        await pool.query('BEGIN'); // Iniciar transacción atómica
-
-        // 1. Insertar el producto principal y obtener el nuevo ID
-        const productQuery = `
-            INSERT INTO products (user_id, name, description, price, category, location, type, state)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id;
-        `;
-        const productResult = await pool.query(productQuery, [
-            userId,
-            name,
-            description,
-            price,
-            category,
-            location,
-            type || 'producto',
-            state || 'visible',
-        ]);
-        const productId = productResult.rows[0].id;
-
-        // 2. Insertar las URLs de las imágenes (usando parámetros para evitar inyección y errores)
-        if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) {
-            const trimmed = imageUrls.map(u => (u || '').trim());
-            const validUrls = trimmed.filter(url => url !== '');
-
-            // Validar formato de URL: debe comenzar por http:// o https:// para cumplir constraint
-            const invalidUrls = validUrls.filter(url => !/^https?:\/\//i.test(url));
-            if (invalidUrls.length > 0) {
-                await pool.query('ROLLBACK');
-                return res.status(400).json({ message: 'Algunas URLs no son válidas. Deben comenzar con http:// o https://', invalidUrls });
-            }
-
-            if (validUrls.length > 0) {
-                // Construimos un INSERT con placeholders paramétricos:
-                // Ej: VALUES ($1, $2), ($1, $3), ... donde $1 es productId
-                const placeholders = validUrls.map((_, i) => `($1, $${i + 2})`).join(', ');
-                const params = [productId, ...validUrls];
-                const imageInsertQuery = `INSERT INTO product_images (product_id, image_url) VALUES ${placeholders};`;
-                await pool.query(imageInsertQuery, params);
-            }
-        }
-
-        await pool.query('COMMIT'); // Confirmar si todo fue bien
-
-        // Recuperar el producto recién creado con sus imágenes para devolverlo al cliente
-        const created = await pool.query(
-            `SELECT 
-                p.id, p.name, p.description, p.price, p.category, p.location, p.type, p.created_at,
-                p.user_id,
-                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            WHERE p.id = $1
-            GROUP BY p.id;
-            `, [productId]
-        );
-
-        res.status(201).json({ message: 'Producto publicado con éxito', product: created.rows[0] });
-
-    } catch (error) {
-        await pool.query('ROLLBACK'); // Deshacer si hubo un error
-        console.error('Error al crear el producto:', error);
-        res.status(500).json({ message: 'Error interno del servidor al crear el producto.', error: error.message });
-    }
-};
-
-// --- R E A D (Ejemplo de obtener todos los productos visibles) ---
-export const getProducts = async (req, res) => {
-    const { category, location, min_price, max_price, search } = req.query;
-
-    let query = `
-        SELECT 
-            p.id, p.name, p.description, p.price, p.category, p.location, p.created_at,
-            p.user_id,
-            COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-        FROM products p
-        LEFT JOIN product_images pi ON p.id = pi.product_id
-        WHERE p.state = 'visible' 
-    `;
-    
-    const params = [];
-    let paramIndex = 1;
-
-    if (category) {
-        query += ` AND p.category = $${paramIndex++}`;
-        params.push(category);
-    }
-    if (location) {
-        query += ` AND p.location ILIKE $${paramIndex++}`; // ILIKE para case-insensitive
-        params.push(`%${location}%`);
-    }
-    if (min_price) {
-        query += ` AND p.price >= $${paramIndex++}`;
-        params.push(min_price);
-    }
-    if (max_price) {
-        query += ` AND p.price <= $${paramIndex++}`;
-        params.push(max_price);
-    }
-     if (search) {
-        // Búsqueda simple en nombre y descripción
-        query += ` AND (p.name ILIKE $${paramIndex} OR p.description ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
-    }
-
-    query += `
-        GROUP BY p.id
-        ORDER BY p.created_at DESC;
-    `;
-
-    try {
-        const result = await pool.query(query, params);
-        res.status(200).json(result.rows);
-    } catch (error) {
-        console.error("Error al obtener productos con filtros:", error);
-        res.status(500).json({ message: 'Error al obtener productos.' });
-    }
-};
-
-// --- R E A D (Obtener UN Producto por ID - Comprador/Público) ---
-// --- NUEVA FUNCIÓN ---
-export const getProductById = async (req, res) => {
-    const { id } = req.params;
-    try {
-        const result = await pool.query(`
-            SELECT 
-                p.id, p.name, p.description, p.price, p.category, p.location, p.type, p.created_at,
-                p.user_id, -- Opcional: para mostrar "Vendido por"
-                u.name as seller_name, -- Opcional: nombre del vendedor
-                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            LEFT JOIN users u ON p.user_id = u.id -- Opcional: unir con usuarios
-            WHERE p.id = $1 AND p.state = 'visible'
-            GROUP BY p.id, u.name;
-        `, [id]);
-        
-        if (result.rowCount === 0) {
-            return res.status(404).json({ message: 'Producto no encontrado o no está visible.' });
-        }
-        
-        res.status(200).json(result.rows[0]);
-    } catch (error) {
-         console.error("Error al obtener producto por ID:", error);
-        res.status(500).json({ message: 'Error al obtener el producto.' });
-    }
-};
-
-
-// --- U P D A T E (Actualizar Producto - Vendedor) ---
-// --- NUEVA FUNCIÓN ---
-export const updateProduct = async (req, res) => {
-    const { id } = req.params; // ID del producto
-    const userId = req.userId; // ID del vendedor (autenticado)
-    
-    // Campos que el vendedor puede editar
-    const { name, description, price, category, location, availability, type, state } = req.body;
-
-    // (Aquí iría una validación más robusta de los campos entrantes)
-    if (!name || !price) {
-         return res.status(400).json({ message: 'Nombre y Precio son obligatorios.' });
-    }
-
-    try {
-        await pool.query('BEGIN');
-
-        // La consulta verifica que el ID del producto ($1) y el ID del usuario ($2) coincidan
-        const productQuery = `
-            UPDATE products SET 
-                name = $3,
-                description = $4,
-                price = $5,
-                category = $6,
-                location = $7,
-                availability = $8,
-                type = $9,
-                state = $10
-            WHERE id = $1 AND user_id = $2
-            RETURNING *; 
-        `;
-        
-        const result = await pool.query(productQuery, [
-            id, 
-            userId,
-            name,
-            description,
-            price,
-            category,
-            location,
-            availability,
-            type,
-            state || 'visible' // El vendedor puede ocultarlo (ej: 'oculto')
-        ]);
-
-        if (result.rowCount === 0) {
-            await pool.query('ROLLBACK');
-            return res.status(404).json({ message: 'Producto no encontrado o no autorizado para editar.' });
-        }
-
-        // Manejar actualización de imágenes si vienen en el body como imageUrls
-        const { imageUrls } = req.body;
-        if (imageUrls && Array.isArray(imageUrls)) {
-            const validUrls = imageUrls.filter(url => url && url.trim() !== '');
-            // Borrar imágenes existentes
-            await pool.query('DELETE FROM product_images WHERE product_id = $1', [id]);
-            if (validUrls.length > 0) {
-                const placeholders = validUrls.map((_, i) => `($1, $${i + 2})`).join(', ');
-                const params = [id, ...validUrls];
-                const imageInsertQuery = `INSERT INTO product_images (product_id, image_url) VALUES ${placeholders};`;
-                await pool.query(imageInsertQuery, params);
-            }
-        }
-
-        await pool.query('COMMIT');
-
-        // Recuperar producto actualizado con sus imágenes
-        const updated = await pool.query(
-            `SELECT 
-                p.id, p.name, p.description, p.price, p.category, p.location, p.type, p.created_at,
-                p.user_id,
-                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            WHERE p.id = $1
-            GROUP BY p.id;
-            `, [id]
-        );
-
-        res.status(200).json(updated.rows[0]);
-
-    } catch (error) {
-        await pool.query('ROLLBACK');
-        console.error('Error al actualizar el producto:', error);
-        res.status(500).json({ message: 'Error interno del servidor al actualizar el producto.', error: error.message });
-    }
-};
-// --- D E L E T E (Eliminar Producto) ---
-export const deleteProduct = async (req, res) => {
-    const { id } = req.params; // ID del producto a eliminar
-    const userId = req.userId; // ID del usuario autenticado (del token)
-
-    if (!id) {
-        return res.status(400).json({ message: 'Se requiere el ID del producto.' });
-    }
-
-    try {
-        // La consulta verifica que el producto exista Y que pertenezca al usuario autenticado.
-        // La eliminación en 'product_images' se maneja automáticamente por ON DELETE CASCADE.
-        const productQuery = `
-            DELETE FROM products
-            WHERE id = $1 AND user_id = $2
-            RETURNING id;
-        `;
-        const result = await pool.query(productQuery, [id, userId]);
-
-        if (result.rowCount === 0) {
-            // Si rowCount es 0, el producto no existe o no pertenece a este usuario.
-            return res.status(404).json({ message: 'Producto no encontrado o no autorizado para eliminar.' });
-        }
-
-        res.status(200).json({ message: `Producto con ID ${id} eliminado con éxito.` });
-
-    } catch (error) {
-        console.error('Error al eliminar el producto:', error);
-        res.status(500).json({ message: 'Error interno del servidor al eliminar el producto.', error: error.message });
-    }
-};
-
-/// Controlador para 'Toggle' (Añadir/Quitar) Favorito ---
-export const toggleFavorite = async (req, res) => {
-  const { id } = req.params;   // ID del producto
-  const userId = req.userId; // ID del usuario (del token)
 
   try {
-    // 1. Intentar insertar el favorito
-    const insertResult = await pool.query(
-      `INSERT INTO favorites (user_id, product_id)
-       VALUES ($1, $2)
-       ON CONFLICT (user_id, product_id) DO NOTHING
-       RETURNING id;`,
-      [userId, id]
-    );
+    // 1. Validar URLs ANTES de insertar nada
+    let validUrls = [];
+    if (imageUrls && Array.isArray(imageUrls)) {
+      const trimmed = imageUrls.map((u) => (u || '').trim());
+      validUrls = trimmed.filter((url) => url !== '');
 
-    // 2. Si la inserción devolvió un ID, significa que se añadió
-    if (insertResult.rowCount > 0) {
+      const invalidUrls = validUrls.filter((url) => !/^https?:\/\//i.test(url));
+      if (invalidUrls.length > 0) {
+        return res.status(400).json({
+          message: 'Algunas URLs no son válidas. Deben comenzar con http:// o https://',
+          invalidUrls,
+        });
+      }
+    }
+
+    // 2. Insertar producto
+    const { data: product, error: productError } = await supabase
+      .from('products')
+      .insert({
+        user_id: userId,
+        name,
+        description,
+        price,
+        category,
+        location,
+        type,
+        state,
+      })
+      .select()
+      .single();
+
+    if (productError) {
+      console.error('❌ Error al insertar producto:', productError);
+      return res.status(500).json({
+        message: 'Error al crear el producto.',
+        error: productError.message,
+      });
+    }
+
+    const productId = product.id;
+
+    // 3. Insertar imágenes si hay
+    if (validUrls.length > 0) {
+      const rowsToInsert = validUrls.map((url) => ({
+        product_id: productId,
+        image_url: url,
+      }));
+
+      const { error: imagesError } = await supabase
+        .from('product_images')
+        .insert(rowsToInsert)
+        .select();
+
+      if (imagesError) {
+        console.error('❌ Error al insertar imágenes:', imagesError);
+        // Ojo: aquí el producto ya está creado. Para 100% atomicidad habría que usar RPC.
+      }
+    }
+
+    // 4. Recuperar producto con imágenes
+    const { data: productWithImages, error: getError } = await supabase
+      .from('products')
+      .select(
+        `
+        id,
+        name,
+        description,
+        price,
+        category,
+        location,
+        type,
+        created_at,
+        user_id,
+        product_images (
+          image_url
+        )
+      `
+      )
+      .eq('id', productId)
+      .single();
+
+    if (getError) {
+      console.error('❌ Error al obtener producto recién creado:', getError);
+      return res.status(500).json({
+        message: 'Producto creado, pero error al obtenerlo con imágenes.',
+        error: getError.message,
+      });
+    }
+
+    const images = (productWithImages.product_images || []).map((img) => img.image_url);
+
+    const result = {
+      id: productWithImages.id,
+      name: productWithImages.name,
+      description: productWithImages.description,
+      price: productWithImages.price,
+      category: productWithImages.category,
+      location: productWithImages.location,
+      type: productWithImages.type,
+      created_at: productWithImages.created_at,
+      user_id: productWithImages.user_id,
+      images,
+    };
+
+    res.status(201).json({ message: 'Producto publicado con éxito', product: result });
+  } catch (error) {
+    console.error('Error al crear el producto:', error);
+    res.status(500).json({
+      message: 'Error interno del servidor al crear el producto.',
+      error: error.message,
+    });
+  }
+};
+
+// --- R E A D (Obtener productos con filtros) ---
+export const getProducts = async (req, res) => {
+  const { category, location, min_price, max_price, search } = req.query;
+
+  try {
+    let query = supabase
+      .from('products')
+      .select(
+        `
+        id,
+        name,
+        description,
+        price,
+        category,
+        location,
+        created_at,
+        user_id,
+        state,
+        product_images (
+          image_url
+        )
+      `
+      )
+      .eq('state', 'visible')
+      .order('created_at', { ascending: false });
+
+    if (category) query = query.eq('category', category);
+    if (location) query = query.ilike('location', `%${location}%`);
+    if (min_price) query = query.gte('price', min_price);
+    if (max_price) query = query.lte('price', max_price);
+
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('❌ Error Supabase al obtener productos:', error);
+      return res.status(500).json({
+        message: 'Error al obtener productos.',
+        error: error.message,
+      });
+    }
+
+    const products = (data || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      price: p.price,
+      category: p.category,
+      location: p.location,
+      created_at: p.created_at,
+      user_id: p.user_id,
+      images: (p.product_images || []).map((img) => img.image_url),
+    }));
+
+    return res.status(200).json(products);
+  } catch (err) {
+    console.error('❌ Error al obtener productos con filtros:', err);
+    return res.status(500).json({ message: 'Error al obtener productos.' });
+  }
+};
+
+// --- R E A D (Obtener UN Producto por ID - Público) ---
+export const getProductById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { data: product, error } = await supabase
+      .from('products')
+      .select(
+        `
+        id,
+        name,
+        description,
+        price,
+        category,
+        location,
+        type,
+        created_at,
+        state,
+        user_id,
+        seller:users (
+          name
+        ),
+        product_images (
+          image_url
+        )
+      `
+      )
+      .eq('id', id)
+      .eq('state', 'visible')
+      .maybeSingle();
+
+    if (error) {
+      console.error('❌ Error Supabase al obtener producto por ID:', error);
+      return res.status(500).json({
+        message: 'Error al obtener el producto.',
+        error: error.message,
+      });
+    }
+
+    if (!product) {
+      return res
+        .status(404)
+        .json({ message: 'Producto no encontrado o no está visible.' });
+    }
+
+    const response = {
+      id: product.id,
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      category: product.category,
+      location: product.location,
+      type: product.type,
+      created_at: product.created_at,
+      user_id: product.user_id,
+      seller_name: product.seller?.name || null,
+      images: (product.product_images || []).map((img) => img.image_url),
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Error al obtener producto por ID:', error);
+    res.status(500).json({ message: 'Error al obtener el producto.' });
+  }
+};
+
+// --- U P D A T E (Actualizar Producto - Vendedor) ---
+export const updateProduct = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.userId;
+
+  const {
+    name,
+    description,
+    price,
+    category,
+    location,
+    availability,
+    type,
+    state,
+    imageUrls,
+  } = req.body;
+
+  if (!name || !price) {
+    return res.status(400).json({ message: 'Nombre y Precio son obligatorios.' });
+  }
+
+  try {
+    // 1. Actualizar producto (solo si pertenece al usuario)
+    const { data: updatedProduct, error: updateError } = await supabase
+      .from('products')
+      .update({
+        name,
+        description,
+        price,
+        category,
+        location,
+        availability,
+        type,
+        state: state || 'visible',
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .maybeSingle();
+
+    if (updateError) {
+      console.error('❌ Error al actualizar producto:', updateError);
+      return res.status(500).json({
+        message: 'Error al actualizar el producto.',
+        error: updateError.message,
+      });
+    }
+
+    if (!updatedProduct) {
+      return res.status(404).json({
+        message: 'Producto no encontrado o no autorizado para editar.',
+      });
+    }
+
+    // 2. Manejo de imágenes (si vienen en el body)
+    if (imageUrls && Array.isArray(imageUrls)) {
+      const validUrls = imageUrls
+        .map((u) => (u || '').trim())
+        .filter((url) => url !== '');
+
+      // Borrar imágenes existentes
+      const { error: deleteError } = await supabase
+        .from('product_images')
+        .delete()
+        .eq('product_id', id);
+
+      if (deleteError) {
+        console.error('❌ Error al borrar imágenes existentes:', deleteError);
+      }
+
+      if (validUrls.length > 0) {
+        const rowsToInsert = validUrls.map((url) => ({
+          product_id: id,
+          image_url: url,
+        }));
+
+        const { error: insertImagesError } = await supabase
+          .from('product_images')
+          .insert(rowsToInsert)
+          .select();
+
+        if (insertImagesError) {
+          console.error('❌ Error al insertar nuevas imágenes:', insertImagesError);
+        }
+      }
+    }
+
+    // 3. Recuperar producto actualizado con imágenes
+    const { data: productWithImages, error: getError } = await supabase
+      .from('products')
+      .select(
+        `
+        id,
+        name,
+        description,
+        price,
+        category,
+        location,
+        type,
+        created_at,
+        user_id,
+        product_images (
+          image_url
+        )
+      `
+      )
+      .eq('id', id)
+      .single();
+
+    if (getError) {
+      console.error('❌ Error al obtener producto actualizado:', getError);
+      return res.status(500).json({
+        message: 'Producto actualizado, pero error al obtenerlo con imágenes.',
+        error: getError.message,
+      });
+    }
+
+    const images = (productWithImages.product_images || []).map((img) => img.image_url);
+
+    const result = {
+      id: productWithImages.id,
+      name: productWithImages.name,
+      description: productWithImages.description,
+      price: productWithImages.price,
+      category: productWithImages.category,
+      location: productWithImages.location,
+      type: productWithImages.type,
+      created_at: productWithImages.created_at,
+      user_id: productWithImages.user_id,
+      images,
+    };
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error('Error al actualizar el producto:', error);
+    res.status(500).json({
+      message: 'Error interno del servidor al actualizar el producto.',
+      error: error.message,
+    });
+  }
+};
+
+// --- D E L E T E (Eliminar Producto) ---
+export const deleteProduct = async (req, res) => {
+  const { id } = req.params;
+  const userId = req.userId;
+
+  if (!id) {
+    return res.status(400).json({ message: 'Se requiere el ID del producto.' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select('id');
+
+    if (error) {
+      console.error('❌ Error al eliminar producto:', error);
+      return res.status(500).json({
+        message: 'Error interno del servidor al eliminar el producto.',
+        error: error.message,
+      });
+    }
+
+    if (!data || data.length === 0) {
+      return res.status(404).json({
+        message: 'Producto no encontrado o no autorizado para eliminar.',
+      });
+    }
+
+    res.status(200).json({ message: `Producto con ID ${id} eliminado con éxito.` });
+  } catch (error) {
+    console.error('Error al eliminar el producto:', error);
+    res.status(500).json({
+      message: 'Error interno del servidor al eliminar el producto.',
+      error: error.message,
+    });
+  }
+};
+
+// --- T O G G L E  F A V O R I T O ---
+export const toggleFavorite = async (req, res) => {
+  const { id } = req.params; // product_id
+  const userId = req.userId;
+
+  try {
+    // 1. Ver si ya existe el favorito
+    const { data: existing, error: existingError } = await supabase
+      .from('favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('product_id', id)
+      .maybeSingle();
+
+    if (existingError) {
+      console.error('❌ Error consultando favorito:', existingError);
+      return res.status(500).json({ message: 'Error interno del servidor.' });
+    }
+
+    if (existing) {
+      // 2. Si existe, eliminarlo
+      const { error: deleteError } = await supabase
+        .from('favorites')
+        .delete()
+        .eq('id', existing.id);
+
+      if (deleteError) {
+        console.error('❌ Error al eliminar favorito:', deleteError);
+        return res.status(500).json({ message: 'Error interno del servidor.' });
+      }
+
+      return res.status(200).json({ message: 'Producto eliminado de favoritos.' });
+    } else {
+      // 3. Si no existe, crearlo
+      const { error: insertError } = await supabase
+        .from('favorites')
+        .insert({
+          user_id: userId,
+          product_id: id,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('❌ Error al añadir favorito:', insertError);
+        if (insertError.code === '23503') {
+          // FK violation
+          return res.status(404).json({ message: 'El producto no existe.' });
+        }
+        return res.status(500).json({ message: 'Error interno del servidor.' });
+      }
+
       return res.status(201).json({ message: 'Producto añadido a favoritos.' });
     }
-
-    // 3. Si no insertó nada (porque ya existía), lo eliminamos
-    await pool.query(
-      'DELETE FROM favorites WHERE user_id = $1 AND product_id = $2',
-      [userId, id]
-    );
-    
-    res.status(200).json({ message: 'Producto eliminado de favoritos.' });
-
   } catch (error) {
     console.error('Error en toggleFavorite:', error);
-    // Error común: el producto no existe (falla la Foreign Key)
-    if (error.code === '23503') {
-       return res.status(404).json({ message: 'El producto no existe.' });
-    }
     res.status(500).json({ message: 'Error interno del servidor.' });
   }
 };
 
-//Controlador para Obtener Productos Favoritos ---
+// --- Obtener Productos Favoritos ---
 export const getFavoriteProducts = async (req, res) => {
-  const userId = req.userId; // ID del usuario (del token)
+  const userId = req.userId;
 
   try {
-    // Consulta que une products y favorites, similar a tu getProducts
-        const query = `
-            SELECT 
-                    p.id, p.name, p.description, p.price, p.category, p.location, p.created_at,
-                    p.user_id,
-                    COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images,
-                    MAX(f.created_at) as favorited_at
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            JOIN favorites f ON p.id = f.product_id  -- La unión clave
-            WHERE f.user_id = $1 AND p.state = 'visible' -- Solo los del usuario y visibles
-            GROUP BY p.id
-            ORDER BY favorited_at DESC;
-        `;
-    
-    const result = await pool.query(query, [userId]);
-    res.status(200).json(result.rows);
-    
+    const { data, error } = await supabase
+      .from('favorites')
+      .select(
+        `
+        created_at,
+        products (
+          id,
+          name,
+          description,
+          price,
+          category,
+          location,
+          created_at,
+          user_id,
+          state,
+          product_images (
+            image_url
+          )
+        )
+      `
+      )
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('❌ Error al obtener favoritos:', error);
+      return res
+        .status(500)
+        .json({ message: 'Error al obtener favoritos.', error: error.message });
+    }
+
+    const favorites = (data || [])
+      .filter((row) => row.products && row.products.state === 'visible')
+      .map((row) => {
+        const p = row.products;
+        return {
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          category: p.category,
+          location: p.location,
+          created_at: p.created_at,
+          user_id: p.user_id,
+          favorited_at: row.created_at,
+          images: (p.product_images || []).map((img) => img.image_url),
+        };
+      });
+
+    res.status(200).json(favorites);
   } catch (error) {
-    console.error("Error al obtener favoritos:", error);
+    console.error('Error al obtener favoritos:', error);
     res.status(500).json({ message: 'Error al obtener favoritos.' });
   }
 };

@@ -1,4 +1,4 @@
-import { pool } from './db.js';
+import { supabase } from './db.js';
 
 // --- (ADMIN) Obtener todos los usuarios ---
 export const getAllUsers = async (req, res) => {
