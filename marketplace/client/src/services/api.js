@@ -22,9 +22,3 @@ api.interceptors.request.use(
 );
 
 export default api;
-
-// Funciones específicas de la API (opcional)
-// export const loginRequest = (user) => api.post(`/auth/login`, user);
-// export const registerRequest = (user) => api.post(`/auth/register`, user);
-// export const getUsersRequest = () => api.get(`/admin/users`);
-// ...etc

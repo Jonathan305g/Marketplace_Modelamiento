@@ -2,11 +2,15 @@ import React, { useState, useEffect } from 'react';
 import CATEGORIES from '../constants/categories';
 import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-// Importa tus estilos CSS si tienes uno dedicado al formulario (ej: './productPublish.css')
+import { useAuth } from '../context/AuthContext';
+import ImageUploader from './ImageUploader';
+import './ProductPublish.css';
 
 const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProductToEdit }) => {
     const location = useLocation();
     const navigate = useNavigate();
+    const { isAuthenticated, user, loading } = useAuth();
+    const canPublish = user && (user.role === 'admin' || user.role === 'seller' || user.role === 'vendedor' || user.role === 'buyer');
 
     // Soportamos pasar productToEdit por props (cuando se usa como componente) o por location.state (cuando se navega a /publish)
     const productToEdit = propProductToEdit || (location.state && location.state.productToEdit) || null;
@@ -20,11 +24,30 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
         description: '', // Descripción
         category: '',
         location: '',
-        imageUrls: [''], // Array de URLs de imágenes
+        contactInfo: '',
+        material: '',
+        imageUrls: [''], 
         type: 'producto',
     });
     const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
     
+    // PROTECCIÓN: Redirigir si no está autenticado
+    useEffect(() => {
+        if (!loading && !isAuthenticated) {
+            setStatusMessage({ type: 'error', text: 'Debes iniciar sesión para publicar un producto.' });
+            setTimeout(() => {
+                navigate('/login', { state: { from: location.pathname } });
+            }, 1500);
+        }
+
+        if (!loading && isAuthenticated && !canPublish) {
+            setStatusMessage({ type: 'error', text: 'No tienes permiso para publicar productos con tu rol actual.' });
+            setTimeout(() => {
+                navigate('/home');
+            }, 1200);
+        }
+    }, [isAuthenticated, loading, navigate, location, canPublish]);
+
     useEffect(() => {
         if (isEditMode && productToEdit) {
             setProductData({
@@ -34,6 +57,8 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                 description: productToEdit.description || '',
                 category: productToEdit.category || '',
                 location: productToEdit.location || '',
+                contactInfo: productToEdit.contact_info || '',
+                material: productToEdit.material || '',
                 // 'images' viene del backend, 'imageUrls' es lo que usa el form
                 imageUrls: productToEdit.images && productToEdit.images.length > 0 ? productToEdit.images : [''],
                 type: productToEdit.type || 'producto',
@@ -62,14 +87,34 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
         setProductData(prev => ({ ...prev, imageUrls: newImageUrls }));
     };
 
-    // Función para añadir otro campo de URL de imagen
-    const addImageField = () => {
-        setProductData(prev => ({ ...prev, imageUrls: [...prev.imageUrls, ''] }));
+    // Callback cuando el ImageUploader sube imágenes exitosamente
+    const handleImagesUploaded = (newUrls) => {
+        setProductData(prev => ({
+            ...prev,
+            imageUrls: [...prev.imageUrls.filter(url => url.trim()), ...newUrls]
+        }));
+        setStatusMessage({ type: 'success', text: 'Imágenes subidas correctamente.' });
+    };
+
+    const handleUploadError = (errorMsg) => {
+        setStatusMessage({ type: 'error', text: errorMsg });
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setStatusMessage({ type: '', text: '' });
+
+        // PROTECCIÓN: Verificar autenticación nuevamente antes de enviar
+        if (!isAuthenticated || !user) {
+            setStatusMessage({ type: 'error', text: 'Debes iniciar sesión para publicar un producto.' });
+            navigate('/login', { state: { from: location.pathname } });
+            return;
+        }
+
+        if (!canPublish) {
+            setStatusMessage({ type: 'error', text: 'No tienes permiso para publicar productos.' });
+            return;
+        }
 
         const token = localStorage.getItem('token');
         if (!token) {
@@ -146,6 +191,42 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
 //
     return (
         <div className="product-publish-form-container" style={{padding: '20px', border: '1px solid #ccc', borderRadius: '8px', maxWidth: '600px', margin: '30px auto', position: 'relative'}}>
+            {/* PROTECCIÓN: Mostrar estado de carga */}
+            {loading && (
+                <div style={{textAlign: 'center', padding: '20px', fontSize: '1.1em', color: '#666'}}>
+                    Cargando...
+                </div>
+            )}
+
+            {/* PROTECCIÓN: Mostrar si no está autenticado */}
+            {!loading && !isAuthenticated && (
+                <div style={{textAlign: 'center', padding: '20px', fontSize: '1.1em', color: '#d9534f', backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px'}}>
+                    <p>Debes iniciar sesión para publicar un producto.</p>
+                    <button 
+                        onClick={() => navigate('/login')}
+                        style={{marginTop: '10px', padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
+                    >
+                        Ir al Login
+                    </button>
+                </div>
+            )}
+
+            {/* Restringir formulario para roles no autorizados */}
+            {!loading && isAuthenticated && !canPublish && (
+                <div style={{textAlign: 'center', padding: '20px', fontSize: '1.1em', color: '#d9534f', backgroundColor: '#f8d7da', border: '1px solid #f5c6cb', borderRadius: '4px'}}>
+                    <p>No tienes permiso para publicar productos.</p>
+                    <button 
+                        onClick={() => navigate('/home')}
+                        style={{marginTop: '10px', padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer'}}
+                    >
+                        Ir al inicio
+                    </button>
+                </div>
+            )}
+
+            {/* Mostrar formulario solo si está autenticado */}
+            {!loading && isAuthenticated && canPublish && (
+            <>
             <h2>{isEditMode ? 'Editar Publicación' : 'Crear Nueva Publicación'}</h2>
             
             {/* Botón de cerrar */}
@@ -219,6 +300,48 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                     />
                 </div>
 
+                {/* Material */}
+                <div style={{marginBottom: '15px'}}>
+                    <label htmlFor="material" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Material:</label>
+                    <input
+                        type="text"
+                        id="material"
+                        name="material"
+                        value={productData.material}
+                        onChange={handleChange}
+                        placeholder="Ej: Algodón, Cuero"
+                        style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
+                    />
+                </div>
+
+                {/* Ubicación */}
+                <div style={{marginBottom: '15px'}}>
+                    <label htmlFor="location" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Ubicación:</label>
+                    <input
+                        type="text"
+                        id="location"
+                        name="location"
+                        value={productData.location}
+                        onChange={handleChange}
+                        placeholder="Ciudad / Provincia"
+                        style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
+                    />
+                </div>
+
+                {/* Información de contacto del vendedor */}
+                <div style={{marginBottom: '15px'}}>
+                    <label htmlFor="contactInfo" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Información de contacto (visible al comprador):</label>
+                    <input
+                        type="text"
+                        id="contactInfo"
+                        name="contactInfo"
+                        value={productData.contactInfo}
+                        onChange={handleChange}
+                        placeholder="Ej: WhatsApp 0999999999, email@dominio.com"
+                        style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
+                    />
+                </div>
+
                 {/* 4. Descripción */}
                 <div style={{marginBottom: '15px'}}>
                     <label htmlFor="description" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Descripción:</label>
@@ -233,25 +356,36 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                 </div>
                 
                 {/* 5. URLs de Imágenes */}
-                <h3 style={{marginTop: '25px', marginBottom: '10px'}}>Imágenes (URLs de Referencia)</h3>
-                {productData.imageUrls.map((url, index) => (
-                    <div key={index} style={{marginBottom: '10px'}}>
-                        <input
-                            type="text"
-                            placeholder={`URL Imagen ${index + 1}`}
-                            value={url}
-                            onChange={(e) => handleImageChange(index, e.target.value)}
-                            style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
-                        />
-                    </div>
-                ))}
-                <button 
-                    type="button" 
-                    onClick={addImageField}
-                    style={{padding: '8px 15px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '20px'}}
-                >
-                    Añadir otra URL de Imagen
-                </button>
+                <h3 style={{marginTop: '25px', marginBottom: '10px'}}>Imágenes</h3>
+                <ImageUploader 
+                    onImagesUploaded={handleImagesUploaded}
+                    onError={handleUploadError}
+                />
+
+                {/* URLs manuales ocultadas por petición del usuario */}
+                {false && (
+                  <div style={{marginTop: '15px'}}>
+                    <h4>O añadir URLs manualmente:</h4>
+                    {productData.imageUrls.map((url, index) => (
+                        <div key={index} style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+                            <input
+                                type="url"
+                                value={url}
+                                onChange={(e) => handleImageChange(index, e.target.value)}
+                                placeholder="https://ejemplo.com/imagen.jpg"
+                                style={{flex: 1, padding: '10px', boxSizing: 'border-box'}}
+                            />
+                        </div>
+                    ))}
+                    <button 
+                        type="button" 
+                        onClick={() => setProductData(prev => ({ ...prev, imageUrls: [...prev.imageUrls, ''] }))}
+                        style={{ marginTop: '8px', padding: '8px 12px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                        + Añadir otro URL
+                    </button>
+                  </div>
+                )}
                 
                 {/* Mensajes de feedback */}
                 {statusMessage.text && (
@@ -268,6 +402,8 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                     {isEditMode ? 'Actualizar Publicación' : 'Publicar Producto'}
                 </button>
             </form>
+            </>
+            )}
         </div>
     );
 };

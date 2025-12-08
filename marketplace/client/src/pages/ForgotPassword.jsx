@@ -1,37 +1,72 @@
-// src/pages/ForgotPassword.jsx
-import React, { useState } from "react";
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import api from '../services/api';
+import './ForgotPassword.css';
 
-const ForgotPassword = () => {
-  const [email, setEmail] = useState(""); // Estado para almacenar el correo
+export default function ForgotPassword() {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (email) {
-      alert(`Se ha enviado un enlace de recuperación a ${email}`);
-      // Aquí se puede agregar la lógica real para enviar el enlace
-    } else {
-      alert("Por favor, ingresa tu correo electrónico.");
+    setError('');
+    setMessage('');
+
+    if (!email) {
+      setError('Por favor ingresa tu correo.');
+      return;
+    }
+
+    if (!/^[\w.+-]+@gmail\.com$/i.test(email)) {
+      setError('Solo se permite recuperación para cuentas @gmail.com');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await api.post('/auth/forgot-password', { email });
+      setMessage(response.data.message || 'Si tu correo existe, recibirás un enlace de recuperación.');
+      setEmail('');
+      setTimeout(() => navigate('/'), 3000);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error al enviar el correo.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="forgot-password-container">
-      <h2>Recuperar contraseña</h2>
-      <form onSubmit={handleSubmit}>
-        <div className="input-group">
-          <label htmlFor="email">Correo electrónico</label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)} // Actualiza el estado con el correo
-            placeholder="Ingresa tu correo"
-          />
-        </div>
-        <button type="submit" className="login-button">Enviar enlace</button>
-      </form>
+      <div className="forgot-password-card">
+        <h2>Recuperar Contraseña</h2>
+        
+        {message && <div className="success-message">{message}</div>}
+        {error && <div className="error-message">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Correo Electrónico (@gmail.com)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu_correo@gmail.com"
+              disabled={loading}
+            />
+          </div>
+
+          <button type="submit" disabled={loading} className="submit-btn">
+            {loading ? 'Enviando...' : 'Enviar Enlace'}
+          </button>
+        </form>
+
+        <p className="back-link">
+          ¿Ya tienes tu contraseña? <Link to="/">Inicia sesión</Link>
+        </p>
+      </div>
     </div>
   );
-};
-
-export default ForgotPassword;
+}

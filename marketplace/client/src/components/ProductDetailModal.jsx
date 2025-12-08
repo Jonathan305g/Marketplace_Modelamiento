@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
+import './ProductDetailModal.css';
 import ChatBox from "./ChatBox";
 
-const ProductDetailModal = ({ product, onClose, onDelete, currentUserId }) => {
-    // Hook SIEMPRE se llama en todas las renderizaciones
-    const [showChat, setShowChat] = useState(false);
-
-    // Si no hay producto, no renderizamos nada
+const ProductDetailModal = ({
+    product,
+    onClose,
+    onDelete,
+    currentUserId,
+    onContactSeller
+}) => {
     if (!product) return null;
 
     const {
-        id,
+        id,          // productId para el chat
         name,
         price,
         location,
@@ -19,202 +22,156 @@ const ProductDetailModal = ({ product, onClose, onDelete, currentUserId }) => {
         description,
         images,
         created_at,
-        user_id
+        user_id,
+        contact_info
     } = product;
 
-    const isOwner =
-      currentUserId && currentUserId.toString() === user_id.toString();
+    const [showChat, setShowChat] = useState(false);
 
-    const firstImage = images && images.length > 0 ? images[0] : null;
+    const isOwner =
+        currentUserId && currentUserId.toString() === user_id?.toString();
+
+    const firstImage = images?.length > 0 ? images[0] : null;
     const dateString = created_at
-      ? new Date(created_at).toLocaleDateString()
-      : "N/A";
+        ? new Date(created_at).toLocaleDateString()
+        : "N/A";
     const priceDisplay = price
-      ? price.toLocaleString(undefined, { minimumFractionDigits: 2 })
-      : "0.00";
+        ? price.toLocaleString(undefined, { minimumFractionDigits: 2 })
+        : "0.00";
 
     const handleDeleteClick = () => {
-      if (onDelete) onDelete(id);
+        if (onDelete) onDelete(id);
+    };
+
+    const handleContactClick = () => {
+        // si tienes función personalizada
+        if (onContactSeller) return onContactSeller(product);
+
+        // fallback si NO usas chatbox
+        if (contact_info && contact_info.includes("@")) {
+            window.location.href = `mailto:${contact_info}`;
+        } else if (contact_info && contact_info.replace(/\D/g, "").length >= 8) {
+            const phone = contact_info.replace(/\D/g, "");
+            window.open(`https://wa.me/${phone}`, "_blank");
+        } else {
+            alert("Contacto del vendedor: " + (contact_info || "No proporcionado"));
+        }
     };
 
     return (
-      <div
-        className="modal-overlay"
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: "rgba(0, 0, 0, 0.7)",
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "center",
-          zIndex: 1000,
-        }}
-      >
-        <div
-          className="modal-content"
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            backgroundColor: "#252835ff",
-            padding: "30px",
-            borderRadius: "10px",
-            maxWidth: "800px",
-            width: "90%",
-            maxHeight: "90vh",
-            overflowY: "auto",
-            position: "relative",
-          }}
-        >
-          <button
-            onClick={onClose}
-            style={{
-              position: "absolute",
-              top: "15px",
-              right: "15px",
-              background: "none",
-              border: "none",
-              fontSize: "1.5em",
-              cursor: "pointer",
-            }}
-          >
-            &times;
-          </button>
-
-          <h2
-            style={{
-              borderBottom: "2px solid #ccc",
-              paddingBottom: "10px",
-              marginBottom: "15px",
-            }}
-          >
-            {name}
-          </h2>
-          <p
-            style={{
-              fontSize: "2em",
-              fontWeight: "900",
-              color: "#dc3545",
-              marginBottom: "20px",
-            }}
-          >
-            ${priceDisplay}
-          </p>
-
-          <div style={{ display: "flex", gap: "30px", flexWrap: "wrap" }}>
-            {/* imagen */}
-            <div style={{ flex: "0 0 45%", minWidth: "300px" }}>
-              <img
-                src={
-                  firstImage ||
-                  "https://via.placeholder.com/400?text=Sin+Imagen"
-                }
-                alt={name}
-                style={{
-                  width: "100%",
-                  height: "auto",
-                  maxHeight: "350px",
-                  objectFit: "cover",
-                  borderRadius: "8px",
-                  boxShadow: "0 4px 12px rgba(0, 0, 0, 0.2)",
-                }}
-              />
-            </div>
-
-            {/* detalles + acciones */}
-            <div style={{ flex: "1" }}>
-              <h3 style={{ marginBottom: "10px", fontSize: "1.4em" }}>
-                Detalles del Producto
-              </h3>
-              <ul
-                style={{
-                  listStyleType: "none",
-                  padding: 0,
-                  lineHeight: "1.8",
-                }}
-              >
-                <li>
-                  <strong>Categoría:</strong> {category}
-                </li>
-                <li>
-                  <strong>Ubicación:</strong> {location}
-                </li>
-                <li>
-                  <strong>Tamaño:</strong> {size || "N/A"}
-                </li>
-                <li>
-                  <strong>Material:</strong> {material || "N/A"}
-                </li>
-                <li style={{ color: "#6c757d", marginTop: "10px" }}>
-                  Publicado: {dateString}
-                </li>
-              </ul>
-
-              <h3
-                style={{
-                  marginTop: "20px",
-                  borderTop: "1px dashed #eee",
-                  paddingTop: "15px",
-                  marginBottom: "10px",
-                }}
-              >
-                Descripción
-              </h3>
-              <p style={{ marginBottom: "20px", whiteSpace: "pre-wrap" }}>
-                {description}
-              </p>
-
-              <div
-                style={{ display: "flex", gap: "10px", marginTop: "20px" }}
-              >
-                {isOwner && (
-                  <button
-                    onClick={handleDeleteClick}
-                    style={{
-                      padding: "10px 20px",
-                      backgroundColor: "#dc3545",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "5px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Eliminar Producto ❌
-                  </button>
-                )}
-
+        <div className="modal-overlay" onClick={onClose}>
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                 <button
-                  className="btn btn-primary"
-                  style={{
-                    padding: "10px 20px",
-                    backgroundColor: "#007bff",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "5px",
-                  }}
-                  onClick={() => setShowChat(true)}
-            
+                    className="modal-close"
+                    onClick={onClose}
+                    aria-label="Cerrar"
                 >
-                  Contactar Vendedor 💬
+                    &times;
                 </button>
-              </div>
 
-              {/* Chat debajo de los botones */}
-              {showChat && (
-                <div style={{ marginTop: "16px" }}>
-                  <ChatBox
-                    userId={currentUserId}
-                    otherUserId={user_id}
-                    otherUserName={name}
-                  />
+                <div className="modal-main">
+                    <div className="modal-body">
+                        {/* Título */}
+                        <h2 className="modal-title">{name}</h2>
+
+                        {/* Precio */}
+                        <div className="modal-price">${priceDisplay}</div>
+
+                        {/* Detalles */}
+                        <div className="modal-details">
+                            <div className="detail-item">
+                                <div className="detail-label">Categoría</div>
+                                <div className="detail-value">{category || "N/A"}</div>
+                            </div>
+                            <div className="detail-item">
+                                <div className="detail-label">Ubicación</div>
+                                <div className="detail-value">{location || "N/A"}</div>
+                            </div>
+                            <div className="detail-item">
+                                <div className="detail-label">Tamaño</div>
+                                <div className="detail-value">{size || "N/A"}</div>
+                            </div>
+                            <div className="detail-item">
+                                <div className="detail-label">Material</div>
+                                <div className="detail-value">{material || "N/A"}</div>
+                            </div>
+                        </div>
+
+                        {/* Descripción */}
+                        <div className="modal-description">
+                            <div className="detail-label">Publicado</div>
+                            <div className="detail-value" style={{ marginBottom: '10px' }}>
+                                {dateString}
+                            </div>
+
+                            {!isOwner && (
+                                <div className="detail-value" style={{ marginBottom: "10px" }}>
+                                    <strong>Contacto del vendedor:</strong>{" "}
+                                    {contact_info || "No proporcionado"}
+                                </div>
+                            )}
+
+                            <div
+                                className="detail-label"
+                                style={{ marginTop: "6px" }}
+                            >
+                                Descripción
+                            </div>
+                            <p style={{ margin: 0 }}>{description || "Sin descripción"}</p>
+                        </div>
+
+                        {/* Botones */}
+                        <div className="modal-footer">
+                            {isOwner && (
+                                <button
+                                    className="modal-btn modal-btn-danger"
+                                    onClick={handleDeleteClick}
+                                >
+                                    Eliminar Producto
+                                </button>
+                            )}
+
+                            <button
+                                className="btn btn-primary"
+                                style={{
+                                    padding: "10px 20px",
+                                    backgroundColor: "#007bff",
+                                    color: "white",
+                                    border: "none",
+                                    borderRadius: "5px",
+                                }}
+                                onClick={() => setShowChat(true)}
+                            >
+                                Contactar Vendedor 💬
+                            </button>
+                        </div>
+
+                        {/* Imagen */}
+                        <div className="modal-image-wrapper">
+                            <img
+                                src={
+                                    firstImage ||
+                                    "https://placehold.co/500x400?text=Sin+Imagen"
+                                }
+                                alt={name}
+                                className="modal-image"
+                            />
+                        </div>
+
+                        {/* Chat debajo */}
+                        {showChat && (
+                            <div style={{ marginTop: "16px" }}>
+                                <ChatBox
+                                    userId={currentUserId}
+                                    productId={id} // ⬅ importante para que entren a la misma sala
+                                    otherUserName={isOwner ? "Comprador" : "Vendedor"}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
-              )}
             </div>
-          </div>
         </div>
-      </div>
     );
 };
 

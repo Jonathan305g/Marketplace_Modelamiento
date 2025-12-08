@@ -30,15 +30,11 @@ function signToken(user) {
  */
 router.post("/register", async (req, res) => {
   try {
-    const { name, password } = req.body || {};
-    // limpiamos el email al recibirlo
-    const email = String(req.body.email || "").trim().toLowerCase();
+    const { name, password, role } = req.body || {};
+    // --- CORRECCIÓN: Limpiamos el email al recibirlo ---
+    const email = String(req.body.email || '').trim().toLowerCase(); 
 
-    console.log("\n[DEBUG] /register: Recibido", {
-      name,
-      email,
-      password: "***",
-    });
+    console.log("\n[DEBUG] /register: Recibido", { name, email, password: '***', role });
 
     if (!name || !email || !password) {
       console.log("[DEBUG] /register: Faltan campos");
@@ -47,6 +43,10 @@ router.post("/register", async (req, res) => {
     if (!isValidEmail(email)) {
       return res.status(400).json({ message: "Correo electrónico no válido." });
     }
+
+    // Validar que el rol sea válido (si se proporciona)
+    const validRoles = ['buyer', 'seller', 'moderator', 'admin'];
+    const userRole = role && validRoles.includes(role) ? role : 'buyer';
 
     // 1) validar email repetido con Supabase
     const { data: existingUser, error: existsError } = await supabase
@@ -69,34 +69,21 @@ router.post("/register", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     console.log("[DEBUG] /register: Hash de contraseña creado");
 
-    // 3) insertar usuario en Supabase
-    const { data: insertData, error: insertError } = await supabase
-      .from("users")
-      .insert({
-        name,
-        email,
+    // Inserta sin especificar ID, deja que Supabase lo auto-asigne
+    const { data: inserted, error: insertError } = await supabase
+      .from('users')
+      .insert([{ 
+        name, 
+        email, 
         password_hash: hash,
-        // opcional: si quieres que arranque como 'pending'
-        // status: 'pending'
-      })
-      .select("id, name, email, created_at, role, status")
-      .single();
+        role: userRole,        // Usa el rol especificado o 'buyer' por defecto
+        status: 'active'       // Status por defecto: active
+      }])
+      .select('id, name, email, created_at, role, status');
 
-    if (insertError) {
-      console.error(
-        "[DEBUG] /register: Error al insertar usuario:",
-        insertError
-      );
-      // si tienes constraint UNIQUE en email, podrías revisar insertError.code === '23505'
-      if (insertError.code === "23505") {
-        return res
-          .status(400)
-          .json({ message: "El correo ya está registrado." });
-      }
-      return res.status(500).json({ error: "Error en el registro" });
-    }
-
-    const user = insertData;
+    if (insertError) throw insertError;
+    
+    const user = inserted[0];
     const token = signToken(user);
 
     console.log(
@@ -177,5 +164,11 @@ router.post("/login", async (req, res) => {
     res.status(500).json({ error: "Error en el login" });
   }
 });
+
+// Recuperación de contraseña
+import { forgotPassword, resetPassword } from './password.controller.js';
+
+router.post('/auth/forgot-password', forgotPassword);
+router.post('/auth/reset-password', resetPassword);
 
 export default router;

@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import "./login.css";
 import Helper from "../components/Helper";
 import { useAuth } from '../context/AuthContext'; // <--- ¡MUY IMPORTANTE!
+import loginImage from '../images/lpm1.png';
 
 const Login = () => {
   const [email, setEmail] = useState("");
@@ -12,8 +13,15 @@ const Login = () => {
   const [errorMsg, setErrorMsg] = useState("");
   
   const navigate = useNavigate();
-  // 1. OBTENEMOS LA FUNCIÓN 'login' DEL CONTEXTO
-  const { login } = useAuth(); 
+  // 1. OBTENEMOS LA FUNCIÓN 'login' DEL CONTEXTO Y EL ESTADO
+  const { login, isAuthenticated, loading: authLoading } = useAuth(); 
+
+  // PROTECCIÓN: Si ya está autenticado, redirigir a Home y reemplazar el historial
+  useEffect(() => {
+    if (!authLoading && isAuthenticated) {
+      navigate('/home', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   useEffect(() => {
     const t = setTimeout(() => setRobotMessage("Ingresa tu correo y contraseña"), 3000);
@@ -51,8 +59,8 @@ const Login = () => {
 
       setRobotMessage(`¡Bienvenido, ${data.user.name}!`);
       
-      // 3. Navegamos a "/" (tu Home)
-      navigate("/home"); 
+      // 3. Navegamos a "/home" con replace para evitar volver atrás
+      navigate("/home", { replace: true }); 
 
     } catch (err) {
       setErrorMsg("Error de red. Verifica que la API esté corriendo en :4000");
@@ -63,46 +71,65 @@ const Login = () => {
 
   return (
     <div className="login-page">
-      <Helper message={robotMessage} />
-      <div className="login-container">
-        <h2>Iniciar sesión</h2>
-        
-        <form onSubmit={handleSubmit}>
-          <div className="input-group">
-            <label htmlFor="email">Correo</label>
-            <input
-              id="email"
-              type="email"
-              placeholder="tu@correo.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              required
-            />
-          </div>
-          <div className="input-group">
-            <label htmlFor="password">Contraseña</label>
-            <input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </div>
-          {errorMsg && <p style={{ color: "crimson", marginBottom: 12 }}>{errorMsg}</p>}
-          <button type="submit" className="login-button" disabled={loading}>
-            {loading ? "Validando..." : "Ingresar"}
-          </button>
-        </form>
+      {/* Columna Izquierda - Formulario */}
+      <div className="login-page-left">
+        <div className="login-container">
+          <h2 className="login-title">Iniciar sesión</h2>
+          <p className="subtitle">Ingresa email y contraseña para acceder a tu cuenta</p>
+          
+          <form onSubmit={handleSubmit}>
+            <div className="input-group">
+              <label htmlFor="email">Correo</label>
+              <input
+                id="email"
+                type="email"
+                placeholder="tu@correo.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                required
+              />
+            </div>
+            <div className="input-group">
+              <label htmlFor="password">Contraseña</label>
+              <input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </div>
+            {errorMsg && <p className="error-message">{errorMsg}</p>}
+            <button type="submit" className="login-button" disabled={loading}>
+              {loading ? "Validando..." : "Acceder"}
+            </button>
+          </form>
 
-        <div className="links">
-          <Link to="/forgot-password" className="forgot-password">¿Olvidaste tu contraseña?</Link>
-          <Link to="/register" className="create-account">Crear cuenta</Link>
+          <div className="links">
+            <Link to="/forgot-password" className="forgot-password">¿Olvidaste tu contraseña?</Link>
+            <div>
+              <span className="signup-text">¿No tienes cuenta? </span>
+              <Link to="/register" className="signup-link">Regístrate Ahora.</Link>
+            </div>
+          </div>
         </div>
       </div>
+
+      {/* Columna Derecha - Robot e Imagen */}
+      <div className="login-page-right">
+        <img 
+          src={loginImage} 
+          alt="Login background" 
+          className="login-background-image"
+        />
+        <Helper message={robotMessage} />
+      </div>
+
+      {/* Botón crear cuenta - Fixed */}
+     { /*<Link to="/register" className="create-account">Crear cuenta</Link>*/ }
     </div>
   );
 };

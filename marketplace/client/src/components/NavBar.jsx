@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import NotificationCenter from './NotificationCenter';
 import './NavBar.css';
 
 const NavBar = () => {
@@ -24,16 +25,23 @@ const NavBar = () => {
       </div>
       <div className="navbar-links">
         <Link to="/home">Inicio</Link>
-        {/* Mostrar 'Publicar' para cualquier usuario autenticado */}
-        <Link to="/publish">Publicar</Link>
+        {/* Mostrar 'Publicar' solo para roles con permiso (admin, seller, vendedor o buyer) */}
+        {user && (user.role === 'admin' || user.role === 'seller' || user.role === 'vendedor' || user.role === 'buyer') && (
+          <Link to="/publish">Publicar</Link>
+        )}
 
-        {(user && (user.role === 'admin' || user.role === 'moderator')) && (
+        {/* Mostrar 'Admin' solo para ADMIN (no para moderador) */}
+        {user && user.role === 'admin' && (
           <Link to="/admin">Admin</Link>
         )}
 
-        {(user && (user.role === 'admin' || user.role === 'moderator')) && (
+        {/* Mostrar 'Moderación' para admin y moderador */}
+        {user && (user.role === 'admin' || user.role === 'moderator') && (
           <Link to="/moderation">Moderación</Link>
         )}
+
+        {/* Centro de Notificaciones */}
+        <NotificationCenter />
 
         {/* Botón de usuario que despliega el menú */}
         <div className="user-menu">

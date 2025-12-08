@@ -4,6 +4,7 @@ import api from '../services/api'; // Importamos el helper de Axios
 import ProductGrid from '../components/ProductGrid';
 import { useAuth } from '../context/AuthContext';
 import ProductDetailModal from '../components/ProductDetailModal'; // Importamos el Modal
+import './FavoritesPage.css';
 
 const FavoritesPage = () => {
   const [products, setProducts] = useState([]);

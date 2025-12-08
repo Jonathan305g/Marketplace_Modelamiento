@@ -1,6 +1,7 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext'; // <-- IMPORTAR
 import api from '../services/api';
+import './ProductCard.css';
 // Aceptamos la nueva prop: onClick
 export default function ProductCard({ product, onClick, refreshProducts, onEditProduct }) { 
   const { user, isAuthenticated } = useAuth();
@@ -16,7 +17,11 @@ export default function ProductCard({ product, onClick, refreshProducts, onEditP
     user_id // <-- ¡IMPORTANTE!
   } = product || {};
 
-  const firstImage = (images && images.length > 0) ? images[0] : null;
+  // Preferimos images (array de strings). Si no, usamos product_images del backend; fallback a placeholder.
+  const firstImage = (images && images.length > 0)
+    ? images[0]
+    : (product?.product_images && product.product_images.length > 0 ? product.product_images[0].image_url : null);
+  const placeholder = 'https://placehold.co/300x200?text=Sin+Imagen';
   const dateString = created_at ? new Date(created_at).toLocaleDateString() : 'N/A';
   const priceDisplay = price ? price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00';
 
@@ -50,7 +55,7 @@ export default function ProductCard({ product, onClick, refreshProducts, onEditP
     e.stopPropagation();
     if (window.confirm(`¿Cambiar estado de "${product.name}" a "${newState}"?`)) {
       try {
-        await api.put(`/admin/products/${product.id}/state`, { status: newState });
+        await api.put(`/admin/products/${product.id}/state`, { state: newState });
 
         alert('Estado del producto actualizado');
         if (refreshProducts) refreshProducts(); 
@@ -85,79 +90,64 @@ export default function ProductCard({ product, onClick, refreshProducts, onEditP
   };
 
   return (
-    // Tu JSX está perfecto, no se necesita cambiar nada aquí
-    <article 
-        className="card product" 
-        onClick={onClick} 
-        style={{ cursor: 'pointer', border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden', transition: 'box-shadow 0.3s' }}
-        onMouseOver={e => e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)'}
-        onMouseOut={e => e.currentTarget.style.boxShadow = 'none'}
-    >
-      <div className="product__image">
+    <article className="product-card" onClick={onClick}>
+      <div className="product-image-wrapper">
         <img 
-          src={firstImage || 'https://via.placeholder.com/180?text=Sin+Imagen'} 
+          src={firstImage || placeholder} 
           alt={`Imagen de ${name || 'Producto'}`} 
-          loading="lazy" 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          loading="lazy"
           onError={(e) => { 
             e.target.onerror = null; 
-            e.target.src="https://via.placeholder.com/180?text=Error+Carga"; 
+            e.target.src = placeholder; 
           }}
         />
         <button 
-          className="product__fav" 
+          className="product-favorite-btn" 
           title="Agregar a favoritos" 
           onClick={handleToggleFavorite}
-          style={{ position: 'absolute', top: '10px', right: '10px', background: 'white', border: 'none', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}
-          >
+        >
           ❤️
         </button>
       </div>
 
-      <div className="product__body" style={{ padding: '15px' }}>
-        <h3 className="product__title" title={name} style={{ margin: '0 0 5px 0', fontSize: '1.2em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{name}</h3>
+      <div className="product-content">
+        <h3 className="product-title" title={name}>{name}</h3>
 
-        <div className="product__details" style={{ fontSize: '0.9em', color: '#555', marginBottom: '8px' }}>
-          {size && <span style={{ marginRight: '10px' }}>Talla: <strong>{size}</strong></span>}
-          {material && <span>Material: <strong>{material}</strong></span>}
-        </div>
-        
-        <div className="product__footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-          <span className="price" style={{ fontSize: '1.4em', fontWeight: 'bold', color: '#28a745' }}>${priceDisplay}</span>
-          <button className="btn btn--sm btn--ghost" style={{ border: '1px solid #17a2b8', color: '#17a2b8', padding: '5px 10px', borderRadius: '4px', background: 'white' }}>Ver Detalle</button>
+        <div className="product-meta">
+          {category && <span className="product-category">{category}</span>}
+          {location && <span>{location}</span>}
         </div>
 
-        
-        {/* --- Botones de Acción (Tu JSX está bien) --- */}
+        {(size || material) && (
+          <div className="product-info">
+            {size && <div>📏 {size}</div>}
+            {material && <div>🧵 {material}</div>}
+          </div>
+        )}
+
+        <div className="product-footer">
+          <span className="product-price">${priceDisplay}</span>
+        </div>
+
         {isAuthenticated && (
-          <div className="product-actions" style={{ marginTop: '10px', display: 'flex', gap: '5px', justifyContent: 'space-between' }}>
-            
-            {/* 1. Botones de VENDEDOR (Dueño) */}
+          <div className="product-actions">
             {user.id === user_id && (
-              <div className="seller-actions" style={{ display: 'flex', gap: '5px' }}>
-                <button onClick={handleEdit} className="btn-edit" style={{ background: '#ffc107', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Editar</button>
-                <button onClick={handleDelete} className="btn-delete" style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Eliminar</button>
-              </div>
+              <>
+                <button onClick={handleEdit} className="product-action-btn">Editar</button>
+                <button onClick={handleDelete} className="product-action-btn danger">Eliminar</button>
+              </>
             )}
 
-            {/* 2. Botones de MODERADOR/ADMIN */}
             {(user.role === 'admin' || user.role === 'moderator') && user.id !== user_id && (
-              <div className="moderator-actions" style={{ display: 'flex', gap: '5px', marginLeft: 'auto' }}>
-                <button onClick={(e) => handleModerate(e, 'oculto')} className="btn-hide" style={{ background: '#6c757d', color: 'white', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Ocultar</button>
-                <button onClick={(e) => handleModerate(e, 'suspendido')} className="btn-suspend" style={{ background: '#dc3545', color: 'white', border: 'none', padding: '5px 8px', borderRadius: '4px', cursor: 'pointer' }}>Suspender</button>
-              </div>
+              <>
+                <button onClick={(e) => handleModerate(e, 'oculto')} className="product-action-btn">Ocultar</button>
+                <button onClick={(e) => handleModerate(e, 'suspendido')} className="product-action-btn danger">Suspender</button>
+              </>
             )}
           </div>
         )}
-        {/* --- FIN DE LOS BOTONES DE ACCIÓN --- */}
 
-
-        <div className="product__meta" style={{ fontSize: '0.8em', color: '#888', marginTop: '10px' }}>
-          <span className="badge" style={{ backgroundColor: '#f0f0f0', padding: '2px 6px', borderRadius: '3px', marginRight: '5px' }}>{category || 'General'}</span>
-          <span className="muted">{location}</span>
-          <span className="dot" style={{ margin: '0 5px' }}>•</span>
-          <span className="muted">Pub.: {dateString}</span>
-        </div>
+        <div className="product-date">Publicado: {dateString}</div>
       </div>
     </article>
   );

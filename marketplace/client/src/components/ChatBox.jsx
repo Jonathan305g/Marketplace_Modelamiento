@@ -100,6 +100,7 @@ const ChatBox = ({ currentUserId, otherUserId, onClose }) => {
           type="text"
           placeholder="Escribe un mensaje..."
           value={text}
+          style={{background: "#ffffff",}}
           onChange={(e) => setText(e.target.value)}
         />
         <button type="submit" className="btn btn--primary btn--sm">

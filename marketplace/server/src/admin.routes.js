@@ -6,14 +6,16 @@ import {
     getAllUsers,
     updateUserRole,
     updateUserStatus,
-    moderateProductState
+    moderateProductState,
+    getFlaggedProducts
 } from './admin.controller.js';
 
 const router = Router();
 
-router.get('/users', authRequired, isAdmin, getAllUsers);
+router.get('/users', authRequired, isModerator, getAllUsers);
 router.put('/users/:id/role', authRequired, isAdmin, updateUserRole);
 router.put('/users/:id/status', authRequired, isModerator, updateUserStatus);
 router.put('/products/:id/state', authRequired, isModerator, moderateProductState);
+router.get('/moderation/items', authRequired, isModerator, getFlaggedProducts);
 
 export default router;
