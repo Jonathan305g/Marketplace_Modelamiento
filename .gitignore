@@ -139,4 +139,7 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
 ./marketplace/client/node_modules
+./marketplace/client/packages-lock.json
+
 ./marketplace/server/node_modules
+./marketplace/server/packages-lock.json
