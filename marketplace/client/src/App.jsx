@@ -4,6 +4,7 @@ import NavBar from "./components/NavBar";
 import Login from "./components/login";
 import Home from "./pages/Home";
 import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Register from "./pages/Register";
 import ProtectedRoute from "./pages/ProtectedRoute";
 import ProductPublish from "./components/ProductPublish";
@@ -28,7 +29,7 @@ function AppContent() {
   }
 
   // Rutas donde no se debe mostrar la barra de navegación
-  const hideNavOnPaths = ['/', '/login', '/register', '/forgot-password'];
+  const hideNavOnPaths = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
 
   return (
     <>
@@ -40,6 +41,7 @@ function AppContent() {
         <Route path="/login" element={<Login />} />
         <Route path="/home" element={<Home />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/register" element={<Register />} />
 
         {/* Rutas protegidas: requieren estar autenticado */}

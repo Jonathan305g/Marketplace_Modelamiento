@@ -1,6 +1,7 @@
 import React from 'react';
 import ProductCard from './ProductCard'; 
 
+import './ProductGrid.css';
 
 // Asegúrate de que el componente acepte products como prop
 function ProductGrid({ products,  onProductSelect, refreshProducts, onEditProduct }) { 

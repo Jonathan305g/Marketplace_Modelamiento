@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import CATEGORIES from '../constants/categories';
+import './FilterBar.css';
 
 export default function FilterBar({ onApply, onReset, initial = {} }) {
   const [category, setCategory] = useState(initial.category || '');

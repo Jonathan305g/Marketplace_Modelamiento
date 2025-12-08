@@ -1,77 +1,102 @@
-import { supabase } from './db.js'; // Importa tu pool de conexión a PG
+import { supabase } from './db.js';
+
+// Tipos permitidos para el campo "type" en products
+const ALLOWED_TYPES = ['producto', 'venta', 'renta', 'donacion', 'intercambio'];
+const BUCKET_NAME = process.env.SUPABASE_BUCKET || 'product-images';
+
+// Crea el bucket si no existe (usa service role)
+const ensureBucketExists = async () => {
+    const { data, error } = await supabase.storage.getBucket(BUCKET_NAME);
+
+    if (data) return true; // ya existe
+
+    if (error) {
+        const notFound = error.status === 404 || error.statusCode === '404' || /not\s*found/i.test(error.message || '');
+        if (!notFound) throw error;
+
+        const { error: createError } = await supabase.storage.createBucket(BUCKET_NAME, { public: true });
+        // Si ya existe, ignoramos; si es otro error lo propagamos
+        if (createError && !/exists/i.test(createError.message || '')) throw createError;
+        return true;
+    }
+
+    return true;
+};
+
+// Helper: valida y normaliza URLs de imagen
+const normalizeImageUrls = (imageUrls = []) => {
+    if (!Array.isArray(imageUrls)) return { valid: [], invalid: [] };
+    const trimmed = imageUrls.map(u => (u || '').trim()).filter(Boolean);
+    const invalid = trimmed.filter(url => !/^https?:\/\//i.test(url));
+    const valid = trimmed.filter(url => /^https?:\/\//i.test(url));
+    return { valid, invalid };
+};
 
 // --- C R E A T E (Crear Producto) ---
 export const createProduct = async (req, res) => {
-    // imageUrls se espera como un array de strings (URLs) desde el frontend
     const { name, description, price, category, location, imageUrls, type, state } = req.body;
-    const userId = req.userId; // ID obtenido del middleware de autenticación
+        const { size, material, contactInfo } = req.body; // Added new fields
+    const userId = req.userId;
 
     if (!userId || !name || !price) {
         return res.status(400).json({ message: 'Faltan campos obligatorios (Usuario, Nombre, Precio).' });
     }
 
+    const normalizedType = (type || 'producto').toString().trim().toLowerCase();
+    const finalType = ALLOWED_TYPES.includes(normalizedType) ? normalizedType : 'producto';
+    const finalState = (state || 'visible').toString().trim().toLowerCase();
+
+    const { valid: validUrls, invalid: invalidUrls } = normalizeImageUrls(imageUrls);
+    if (invalidUrls.length > 0) {
+        return res.status(400).json({ message: 'Algunas URLs no son válidas. Deben comenzar con http:// o https://', invalidUrls });
+    }
+
     try {
-        await pool.query('BEGIN'); // Iniciar transacción atómica
+        const { data: inserted, error: insertError } = await supabase
+            .from('products')
+            .insert([{
+                user_id: userId,
+                name,
+                description,
+                price,
+                category,
+                location,
+                    size, // Added new field
+                    material, // Added new field
+                    contact_info: contactInfo, // Added new field
+                type: finalType,
+                state: finalState
+            }])
+            .select('id')
+            .single();
 
-        // 1. Insertar el producto principal y obtener el nuevo ID
-        const productQuery = `
-            INSERT INTO products (user_id, name, description, price, category, location, type, state)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING id;
-        `;
-        const productResult = await pool.query(productQuery, [
-            userId,
-            name,
-            description,
-            price,
-            category,
-            location,
-            type || 'producto',
-            state || 'visible',
-        ]);
-        const productId = productResult.rows[0].id;
+        if (insertError) throw insertError;
 
-        // 2. Insertar las URLs de las imágenes (usando parámetros para evitar inyección y errores)
-        if (imageUrls && Array.isArray(imageUrls) && imageUrls.length > 0) {
-            const trimmed = imageUrls.map(u => (u || '').trim());
-            const validUrls = trimmed.filter(url => url !== '');
+        const productId = inserted.id;
 
-            // Validar formato de URL: debe comenzar por http:// o https:// para cumplir constraint
-            const invalidUrls = validUrls.filter(url => !/^https?:\/\//i.test(url));
-            if (invalidUrls.length > 0) {
-                await pool.query('ROLLBACK');
-                return res.status(400).json({ message: 'Algunas URLs no son válidas. Deben comenzar con http:// o https://', invalidUrls });
-            }
-
-            if (validUrls.length > 0) {
-                // Construimos un INSERT con placeholders paramétricos:
-                // Ej: VALUES ($1, $2), ($1, $3), ... donde $1 es productId
-                const placeholders = validUrls.map((_, i) => `($1, $${i + 2})`).join(', ');
-                const params = [productId, ...validUrls];
-                const imageInsertQuery = `INSERT INTO product_images (product_id, image_url) VALUES ${placeholders};`;
-                await pool.query(imageInsertQuery, params);
-            }
+        if (validUrls.length > 0) {
+            const imageRows = validUrls.map(url => ({ product_id: productId, image_url: url }));
+            const { error: imgError } = await supabase.from('product_images').insert(imageRows);
+            if (imgError) throw imgError;
         }
 
-        await pool.query('COMMIT'); // Confirmar si todo fue bien
+        const { data: created, error: fetchError } = await supabase
+            .from('products')
+                .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)') // Updated select statement
+            .eq('id', productId)
+            .single();
 
-        // Recuperar el producto recién creado con sus imágenes para devolverlo al cliente
-        const created = await pool.query(
-            `SELECT 
-                p.id, p.name, p.description, p.price, p.category, p.location, p.type, p.created_at,
-                p.user_id,
-                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            WHERE p.id = $1
-            GROUP BY p.id;
-            `, [productId]
-        );
+        if (fetchError) throw fetchError;
 
-        res.status(201).json({ message: 'Producto publicado con éxito', product: created.rows[0] });
+        // Transformar product_images de [{image_url: 'url'}] a ['url']
+        const productWithImages = {
+            ...created,
+            images: created.product_images?.map(img => img.image_url) || []
+        };
+        delete productWithImages.product_images;
 
+        res.status(201).json({ message: 'Producto publicado con éxito', product: productWithImages });
     } catch (error) {
-        await pool.query('ROLLBACK'); // Deshacer si hubo un error
         console.error('Error al crear el producto:', error);
         res.status(500).json({ message: 'Error interno del servidor al crear el producto.', error: error.message });
     }
@@ -79,56 +104,41 @@ export const createProduct = async (req, res) => {
 
 // --- R E A D (Ejemplo de obtener todos los productos visibles) ---
 export const getProducts = async (req, res) => {
-    const { category, location, min_price, max_price, search } = req.query;
+  const { category, location, min_price, max_price, search } = req.query;
 
-    let query = `
-        SELECT 
-            p.id, p.name, p.description, p.price, p.category, p.location, p.created_at,
-            p.user_id,
-            COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-        FROM products p
-        LEFT JOIN product_images pi ON p.id = pi.product_id
-        WHERE p.state = 'visible' 
-    `;
-    
-    const params = [];
-    let paramIndex = 1;
+  try {
+        let query = supabase
+            .from('products')
+            .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)')
+            .eq('state', 'visible')
+            .order('created_at', { ascending: false });
 
-    if (category) {
-        query += ` AND p.category = $${paramIndex++}`;
-        params.push(category);
-    }
-    if (location) {
-        query += ` AND p.location ILIKE $${paramIndex++}`; // ILIKE para case-insensitive
-        params.push(`%${location}%`);
-    }
-    if (min_price) {
-        query += ` AND p.price >= $${paramIndex++}`;
-        params.push(min_price);
-    }
-    if (max_price) {
-        query += ` AND p.price <= $${paramIndex++}`;
-        params.push(max_price);
-    }
-     if (search) {
-        // Búsqueda simple en nombre y descripción
-        query += ` AND (p.name ILIKE $${paramIndex} OR p.description ILIKE $${paramIndex})`;
-        params.push(`%${search}%`);
-        paramIndex++;
-    }
+    if (category) query = query.eq('category', category);
+    if (location) query = query.ilike('location', `%${location}%`);
+    if (min_price) query = query.gte('price', min_price);
+    if (max_price) query = query.lte('price', max_price);
+    if (search) query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
 
-    query += `
-        GROUP BY p.id
-        ORDER BY p.created_at DESC;
-    `;
+    const { data, error } = await query;
+    if (error) throw error;
 
-    try {
-        const result = await pool.query(query, params);
-        res.status(200).json(result.rows);
-    } catch (error) {
-        console.error("Error al obtener productos con filtros:", error);
-        res.status(500).json({ message: 'Error al obtener productos.' });
-    }
+    console.log('[DEBUG] Productos raw de Supabase count:', data?.length || 0);
+
+    // Transformar cada producto: product_images -> images
+    const productsWithImages = (data || []).map(p => ({
+      ...p,
+      images: p.product_images?.map(img => img.image_url) || []
+    }));
+    // Eliminar la propiedad product_images anidada
+    productsWithImages.forEach(p => delete p.product_images);
+
+    console.log('[DEBUG] Productos transformados:', JSON.stringify(productsWithImages?.[0], null, 2));
+
+    res.status(200).json(productsWithImages);
+  } catch (error) {
+    console.error('Error al obtener productos con filtros:', error);
+    res.status(500).json({ message: 'Error al obtener productos.' });
+  }
 };
 
 // --- R E A D (Obtener UN Producto por ID - Comprador/Público) ---
@@ -136,26 +146,28 @@ export const getProducts = async (req, res) => {
 export const getProductById = async (req, res) => {
     const { id } = req.params;
     try {
-        const result = await pool.query(`
-            SELECT 
-                p.id, p.name, p.description, p.price, p.category, p.location, p.type, p.created_at,
-                p.user_id, -- Opcional: para mostrar "Vendido por"
-                u.name as seller_name, -- Opcional: nombre del vendedor
-                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            LEFT JOIN users u ON p.user_id = u.id -- Opcional: unir con usuarios
-            WHERE p.id = $1 AND p.state = 'visible'
-            GROUP BY p.id, u.name;
-        `, [id]);
-        
-        if (result.rowCount === 0) {
+        const { data, error } = await supabase
+            .from('products')
+            .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)')
+            .eq('id', id)
+            .eq('state', 'visible')
+            .single();
+
+        if (error && error.code === 'PGRST116') {
             return res.status(404).json({ message: 'Producto no encontrado o no está visible.' });
         }
-        
-        res.status(200).json(result.rows[0]);
+        if (error) throw error;
+
+        // Transformar product_images a images
+        const productWithImages = {
+            ...data,
+            images: data.product_images?.map(img => img.image_url) || []
+        };
+        delete productWithImages.product_images;
+
+        res.status(200).json(productWithImages);
     } catch (error) {
-         console.error("Error al obtener producto por ID:", error);
+        console.error('Error al obtener producto por ID:', error);
         res.status(500).json({ message: 'Error al obtener el producto.' });
     }
 };
@@ -164,116 +176,105 @@ export const getProductById = async (req, res) => {
 // --- U P D A T E (Actualizar Producto - Vendedor) ---
 // --- NUEVA FUNCIÓN ---
 export const updateProduct = async (req, res) => {
-    const { id } = req.params; // ID del producto
-    const userId = req.userId; // ID del vendedor (autenticado)
-    
-    // Campos que el vendedor puede editar
-    const { name, description, price, category, location, availability, type, state } = req.body;
+    const { id } = req.params;
+    const userId = req.userId;
+    const { name, description, price, category, location, availability, size, material, contactInfo, type, state, imageUrls } = req.body;
 
-    // (Aquí iría una validación más robusta de los campos entrantes)
     if (!name || !price) {
-         return res.status(400).json({ message: 'Nombre y Precio son obligatorios.' });
+        return res.status(400).json({ message: 'Nombre y Precio son obligatorios.' });
+    }
+
+    const normalizedType = (type || 'producto').toString().trim().toLowerCase();
+    const finalType = ALLOWED_TYPES.includes(normalizedType) ? normalizedType : 'producto';
+
+    const { valid: validUrls, invalid: invalidUrls } = normalizeImageUrls(imageUrls);
+    if (invalidUrls.length > 0) {
+        return res.status(400).json({ message: 'Algunas URLs no son válidas. Deben comenzar con http:// o https://', invalidUrls });
     }
 
     try {
-        await pool.query('BEGIN');
+        const { data: updated, error: updateError } = await supabase
+            .from('products')
+            .update({
+                name,
+                description,
+                price,
+                category,
+                location,
+                availability,
+                size,
+                material,
+                contact_info: contactInfo,
+                type: finalType,
+                state: state || 'visible'
+            })
+            .eq('id', id)
+            .eq('user_id', userId)
+            .select('id')
+            .single();
 
-        // La consulta verifica que el ID del producto ($1) y el ID del usuario ($2) coincidan
-        const productQuery = `
-            UPDATE products SET 
-                name = $3,
-                description = $4,
-                price = $5,
-                category = $6,
-                location = $7,
-                availability = $8,
-                type = $9,
-                state = $10
-            WHERE id = $1 AND user_id = $2
-            RETURNING *; 
-        `;
-        
-        const result = await pool.query(productQuery, [
-            id, 
-            userId,
-            name,
-            description,
-            price,
-            category,
-            location,
-            availability,
-            type,
-            state || 'visible' // El vendedor puede ocultarlo (ej: 'oculto')
-        ]);
-
-        if (result.rowCount === 0) {
-            await pool.query('ROLLBACK');
+        if (updateError && updateError.code === 'PGRST116') {
             return res.status(404).json({ message: 'Producto no encontrado o no autorizado para editar.' });
         }
+        if (updateError) throw updateError;
 
-        // Manejar actualización de imágenes si vienen en el body como imageUrls
-        const { imageUrls } = req.body;
-        if (imageUrls && Array.isArray(imageUrls)) {
-            const validUrls = imageUrls.filter(url => url && url.trim() !== '');
-            // Borrar imágenes existentes
-            await pool.query('DELETE FROM product_images WHERE product_id = $1', [id]);
+        // Actualizar imágenes
+        if (imageUrls) {
+            const { error: delError } = await supabase.from('product_images').delete().eq('product_id', id);
+            if (delError) throw delError;
+
             if (validUrls.length > 0) {
-                const placeholders = validUrls.map((_, i) => `($1, $${i + 2})`).join(', ');
-                const params = [id, ...validUrls];
-                const imageInsertQuery = `INSERT INTO product_images (product_id, image_url) VALUES ${placeholders};`;
-                await pool.query(imageInsertQuery, params);
+                const rows = validUrls.map(url => ({ product_id: id, image_url: url }));
+                const { error: imgError } = await supabase.from('product_images').insert(rows);
+                if (imgError) throw imgError;
             }
         }
 
-        await pool.query('COMMIT');
+        const { data: product, error: fetchError } = await supabase
+            .from('products')
+            .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)')
+            .eq('id', id)
+            .single();
 
-        // Recuperar producto actualizado con sus imágenes
-        const updated = await pool.query(
-            `SELECT 
-                p.id, p.name, p.description, p.price, p.category, p.location, p.type, p.created_at,
-                p.user_id,
-                COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            WHERE p.id = $1
-            GROUP BY p.id;
-            `, [id]
-        );
+        if (fetchError) throw fetchError;
 
-        res.status(200).json(updated.rows[0]);
+        // Transformar product_images a images
+        const productWithImages = {
+            ...product,
+            images: product.product_images?.map(img => img.image_url) || []
+        };
+        delete productWithImages.product_images;
 
+        res.status(200).json(productWithImages);
     } catch (error) {
-        await pool.query('ROLLBACK');
         console.error('Error al actualizar el producto:', error);
         res.status(500).json({ message: 'Error interno del servidor al actualizar el producto.', error: error.message });
     }
 };
 // --- D E L E T E (Eliminar Producto) ---
 export const deleteProduct = async (req, res) => {
-    const { id } = req.params; // ID del producto a eliminar
-    const userId = req.userId; // ID del usuario autenticado (del token)
+    const { id } = req.params;
+    const userId = req.userId;
 
     if (!id) {
         return res.status(400).json({ message: 'Se requiere el ID del producto.' });
     }
 
     try {
-        // La consulta verifica que el producto exista Y que pertenezca al usuario autenticado.
-        // La eliminación en 'product_images' se maneja automáticamente por ON DELETE CASCADE.
-        const productQuery = `
-            DELETE FROM products
-            WHERE id = $1 AND user_id = $2
-            RETURNING id;
-        `;
-        const result = await pool.query(productQuery, [id, userId]);
+        const { data, error } = await supabase
+            .from('products')
+            .delete()
+            .eq('id', id)
+            .eq('user_id', userId)
+            .select('id')
+            .single();
 
-        if (result.rowCount === 0) {
-            // Si rowCount es 0, el producto no existe o no pertenece a este usuario.
+        if (error && error.code === 'PGRST116') {
             return res.status(404).json({ message: 'Producto no encontrado o no autorizado para eliminar.' });
         }
+        if (error) throw error;
 
-        res.status(200).json({ message: `Producto con ID ${id} eliminado con éxito.` });
-
+        res.status(200).json({ message: `Producto con ID ${data.id} eliminado con éxito.` });
     } catch (error) {
         console.error('Error al eliminar el producto:', error);
         res.status(500).json({ message: 'Error interno del servidor al eliminar el producto.', error: error.message });
@@ -286,28 +287,27 @@ export const toggleFavorite = async (req, res) => {
   const userId = req.userId; // ID del usuario (del token)
 
   try {
-    // 1. Intentar insertar el favorito
-    const insertResult = await pool.query(
-      `INSERT INTO favorites (user_id, product_id)
-       VALUES ($1, $2)
-       ON CONFLICT (user_id, product_id) DO NOTHING
-       RETURNING id;`,
-      [userId, id]
-    );
+        const { error: insertError } = await supabase
+            .from('favorites')
+            .insert([{ user_id: userId, product_id: id }]);
 
-    // 2. Si la inserción devolvió un ID, significa que se añadió
-    if (insertResult.rowCount > 0) {
-      return res.status(201).json({ message: 'Producto añadido a favoritos.' });
-    }
+        if (!insertError) {
+            return res.status(201).json({ message: 'Producto añadido a favoritos.' });
+        }
 
-    // 3. Si no insertó nada (porque ya existía), lo eliminamos
-    await pool.query(
-      'DELETE FROM favorites WHERE user_id = $1 AND product_id = $2',
-      [userId, id]
-    );
-    
-    res.status(200).json({ message: 'Producto eliminado de favoritos.' });
+        // Si hay conflicto de unicidad, lo interpretamos como toggle: eliminar
+        if (insertError.code === '23505') {
+            const { error: deleteError } = await supabase
+                .from('favorites')
+                .delete()
+                .eq('user_id', userId)
+                .eq('product_id', id);
 
+            if (deleteError) throw deleteError;
+            return res.status(200).json({ message: 'Producto eliminado de favoritos.' });
+        }
+
+        throw insertError;
   } catch (error) {
     console.error('Error en toggleFavorite:', error);
     // Error común: el producto no existe (falla la Foreign Key)
@@ -323,26 +323,145 @@ export const getFavoriteProducts = async (req, res) => {
   const userId = req.userId; // ID del usuario (del token)
 
   try {
-    // Consulta que une products y favorites, similar a tu getProducts
-        const query = `
-            SELECT 
-                    p.id, p.name, p.description, p.price, p.category, p.location, p.created_at,
-                    p.user_id,
-                    COALESCE(json_agg(pi.image_url) FILTER (WHERE pi.image_url IS NOT NULL), '[]') as images,
-                    MAX(f.created_at) as favorited_at
-            FROM products p
-            LEFT JOIN product_images pi ON p.id = pi.product_id
-            JOIN favorites f ON p.id = f.product_id  -- La unión clave
-            WHERE f.user_id = $1 AND p.state = 'visible' -- Solo los del usuario y visibles
-            GROUP BY p.id
-            ORDER BY favorited_at DESC;
-        `;
-    
-    const result = await pool.query(query, [userId]);
-    res.status(200).json(result.rows);
+        const { data: favs, error: favError } = await supabase
+            .from('favorites')
+            .select('product_id')
+            .eq('user_id', userId);
+
+        if (favError) throw favError;
+        if (!favs || favs.length === 0) return res.status(200).json([]);
+
+        const productIds = favs.map(f => f.product_id);
+
+        const { data: products, error: prodError } = await supabase
+            .from('products')
+            .select('id, name, description, price, category, location, type, state, created_at, user_id, product_images(image_url)')
+            .in('id', productIds)
+            .eq('state', 'visible');
+
+        if (prodError) throw prodError;
+
+        // Transformar product_images a images
+        const productsWithImages = (products || []).map(p => ({
+            ...p,
+            images: p.product_images?.map(img => img.image_url) || []
+        }));
+        productsWithImages.forEach(p => delete p.product_images);
+
+        res.status(200).json(productsWithImages);
     
   } catch (error) {
     console.error("Error al obtener favoritos:", error);
     res.status(500).json({ message: 'Error al obtener favoritos.' });
   }
+};
+
+// --- Upload de imagen a Supabase Storage (sin guardar en BD) ---
+export const uploadProductImage = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No se recibió ningún archivo.' });
+        }
+
+        const userId = req.userId || 'anon';
+        const ext = req.file.originalname.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const filePath = `products/${userId}/${fileName}`;
+
+        // Garantiza que el bucket exista (lo crea como público si falta)
+        await ensureBucketExists();
+
+        const { error: uploadError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(filePath, req.file.buffer, {
+                cacheControl: '3600',
+                upsert: false,
+                contentType: req.file.mimetype || 'application/octet-stream'
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data: publicData } = supabase.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(filePath);
+
+        return res.status(200).json({ url: publicData.publicUrl, path: filePath });
+    } catch (error) {
+        console.error('Error al subir imagen:', error);
+        const status = error.status || error.statusCode || 500;
+        const msg = error.message || 'Error desconocido al subir imagen.';
+        return res.status(500).json({
+            message: 'Error al subir imagen.',
+            error: msg,
+            bucket: BUCKET_NAME,
+            status
+        });
+    }
+};
+
+// --- Upload de imagen a Supabase Storage Y guardar en product_images ---
+export const uploadProductImageAndSaveDB = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ message: 'No se recibió ningún archivo.' });
+        }
+
+        const { productId } = req.body;
+        const userId = req.userId || 'anon';
+
+        if (!productId) {
+            return res.status(400).json({ message: 'productId es requerido.' });
+        }
+
+        const ext = req.file.originalname.split('.').pop();
+        const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const filePath = `products/${userId}/${fileName}`;
+
+        // Garantiza que el bucket exista
+        await ensureBucketExists();
+
+        // 1. Subir archivo a Storage
+        const { error: uploadError } = await supabase.storage
+            .from(BUCKET_NAME)
+            .upload(filePath, req.file.buffer, {
+                cacheControl: '3600',
+                upsert: false,
+                contentType: req.file.mimetype || 'application/octet-stream'
+            });
+
+        if (uploadError) throw uploadError;
+
+        // 2. Obtener URL pública
+        const { data: publicData } = supabase.storage
+            .from(BUCKET_NAME)
+            .getPublicUrl(filePath);
+
+        const imageUrl = publicData.publicUrl;
+
+        // 3. Guardar en BD (product_images)
+        const { data, error: dbError } = await supabase
+            .from('product_images')
+            .insert([{
+                product_id: productId,
+                image_url: imageUrl
+            }])
+            .select('id, product_id, image_url, created_at');
+
+        if (dbError) throw dbError;
+
+        return res.status(201).json({
+            message: 'Imagen subida y guardada en BD correctamente.',
+            image: data[0]
+        });
+    } catch (error) {
+        console.error('Error al subir imagen y guardar en BD:', error);
+        const status = error.status || error.statusCode || 500;
+        const msg = error.message || 'Error desconocido.';
+        return res.status(500).json({
+            message: 'Error al subir imagen.',
+            error: msg,
+            bucket: BUCKET_NAME,
+            status
+        });
+    }
 };

@@ -1,64 +1,72 @@
-import React, { useState } from "react";
+import { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import api from '../services/api';
+import './ForgotPassword.css';
 
-// Versión mínima y funcional del flujo de "Olvidé mi contraseña".
-// Solo valida el correo y muestra un mensaje de confirmación.
-const ForgotPassword = () => {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState({ type: "", message: "" });
-  const [submitting, setSubmitting] = useState(false);
+export default function ForgotPassword() {
+  const [email, setEmail] = useState('');
+  const [message, setMessage] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus({ type: "", message: "" });
+    setError('');
+    setMessage('');
 
-    const normalized = String(email || "").trim().toLowerCase();
-    if (!normalized) {
-      setStatus({ type: "error", message: "Por favor, ingresa tu correo." });
+    if (!email) {
+      setError('Por favor ingresa tu correo.');
       return;
     }
 
-    // Aquí podrías llamar a tu backend /api/password-reset/request
-    // Dejamos una simulación para no romper el flujo mientras el backend responde.
+    if (!/^[\w.+-]+@gmail\.com$/i.test(email)) {
+      setError('Solo se permite recuperación para cuentas @gmail.com');
+      return;
+    }
+
+    setLoading(true);
     try {
-      setSubmitting(true);
-      setTimeout(() => {
-        setStatus({ type: "success", message: `Si el correo ${normalized} existe, enviaremos un código de recuperación.` });
-        setSubmitting(false);
-      }, 600);
+      const response = await api.post('/auth/forgot-password', { email });
+      setMessage(response.data.message || 'Si tu correo existe, recibirás un enlace de recuperación.');
+      setEmail('');
+      setTimeout(() => navigate('/'), 3000);
     } catch (err) {
-      setStatus({ type: "error", message: "No se pudo procesar la solicitud." });
-      setSubmitting(false);
+      setError(err.response?.data?.error || 'Error al enviar el correo.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="forgot-password-container" style={{ maxWidth: 420, margin: "40px auto", padding: 20 }}>
-      <h2>Recuperar contraseña</h2>
-      <form onSubmit={handleSubmit}>
-        <div className="input-group" style={{ marginBottom: 12 }}>
-          <label htmlFor="email">Correo electrónico</label>
-          <input
-            type="email"
-            id="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="tu@correo.com"
-            required
-          />
-        </div>
+    <div className="forgot-password-container">
+      <div className="forgot-password-card">
+        <h2>Recuperar Contraseña</h2>
+        
+        {message && <div className="success-message">{message}</div>}
+        {error && <div className="error-message">{error}</div>}
 
-        {status.message && (
-          <p style={{ color: status.type === "error" ? "#ef4444" : "#22c55e", marginBottom: 12 }}>
-            {status.message}
-          </p>
-        )}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Correo Electrónico (@gmail.com)</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="tu_correo@gmail.com"
+              disabled={loading}
+            />
+          </div>
 
-        <button type="submit" className="login-button" disabled={submitting}>
-          {submitting ? "Enviando..." : "Enviar enlace"}
-        </button>
-      </form>
+          <button type="submit" disabled={loading} className="submit-btn">
+            {loading ? 'Enviando...' : 'Enviar Enlace'}
+          </button>
+        </form>
+
+        <p className="back-link">
+          ¿Ya tienes tu contraseña? <Link to="/">Inicia sesión</Link>
+        </p>
+      </div>
     </div>
   );
-};
-
-export default ForgotPassword;
+}

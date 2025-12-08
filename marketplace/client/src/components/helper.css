@@ -1,13 +1,10 @@
-/* src/components/Helper.css */
+/* src/components/Helper.css - Diseño Mejorado */
 .robot-wrapper {
-    position: fixed;
-    top: 10px;  /* Puedes ajustar este valor para que esté más cerca o más lejos de la parte superior */
-    left: 50%; /* Esto coloca el robot en el centro de la pantalla */
-    transform: translateX(-50%); /* Esto asegura que el robot esté exactamente centrado */
-    z-index: 10;
+    position: relative;
+    width: 200px;
+    height: 280px;
+    z-index: 40;
 }
-
-
 
 .robot {
   width: 120px;
@@ -21,18 +18,18 @@
 .robot-head {
   width: 80px;
   height: 80px;
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  background: linear-gradient(135deg, #C61A34, #2B55D6);
   border-radius: 20px;
   position: absolute;
   left: 20px;
   top: 0;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  box-shadow: 0 5px 15px rgba(198, 26, 52, 0.4);
 }
 
 .robot-antenna {
   width: 4px;
   height: 20px;
-  background: #333;
+  background: #9ca3af;
   position: absolute;
   left: 38px;
   top: -20px;
@@ -41,7 +38,7 @@
 .robot-antenna-ball {
   width: 12px;
   height: 12px;
-  background: #ff6b6b;
+  background: #C61A34;
   border-radius: 50%;
   position: absolute;
   left: -4px;
@@ -65,7 +62,7 @@
 .robot-eye-pupil {
   width: 10px;
   height: 10px;
-  background: #333;
+  background: #C61A34;
   border-radius: 50%;
   position: absolute;
   top: 5px;
@@ -76,7 +73,7 @@
 .robot-mouth {
   width: 40px;
   height: 8px;
-  background: #333;
+  background: #6b7280;
   border-radius: 10px;
   position: absolute;
   bottom: 15px;
@@ -86,24 +83,23 @@
 .robot-body {
   width: 100px;
   height: 60px;
-  background: linear-gradient(135deg, #4facfe, #00f2fe);
+  background: linear-gradient(135deg, #C61A34, #2B55D6);
   border-radius: 15px;
   position: absolute;
   left: 10px;
   top: 90px;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+  box-shadow: 0 5px 15px rgba(198, 26, 52, 0.4);
 }
 
 .robot-arm {
   width: 15px;
   height: 50px;
-  background: #00f2fe;
+  background: #2B55D6;
   border-radius: 10px;
   position: absolute;
   top: 95px;
-  box-shadow: 0 3px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 3px 8px rgba(198, 26, 52, 0.3);
 }
-
 
 .robot-arm.left {
   left: 0;
@@ -122,13 +118,14 @@
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  background: white;
-  padding: 12px 20px;
-  border-radius: 20px;
-  box-shadow: 0 5px 20px rgba(0,0,0,0.2);
-  font-weight: bold;
-  color: #667eea;
-  font-size: 16px;
+  background: #ffffff;
+  border: 1px solid #C61A34;
+  padding: 12px 18px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(198, 26, 52, 0.15);
+  font-weight: 600;
+  color: #C61A34;
+  font-size: 14px;
   white-space: nowrap;
   opacity: 0;
   animation: showMessage 2s ease-in-out;
@@ -138,14 +135,14 @@
 .speech-bubble:after {
   content: '';
   position: absolute;
-  bottom: -10px;
+  bottom: -8px;
   left: 50%;
   transform: translateX(-50%);
   width: 0;
   height: 0;
-  border-left: 10px solid transparent;
-  border-right: 10px solid transparent;
-  border-top: 10px solid white;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid #ffffff;
 }
 
 @keyframes bounce {
@@ -160,11 +157,11 @@
 
 @keyframes glow {
   0%, 100% { 
-    box-shadow: 0 0 5px #ff6b6b;
+    box-shadow: 0 0 5px #C61A34;
     transform: scale(1);
   }
   50% { 
-    box-shadow: 0 0 20px #ff6b6b, 0 0 30px #ff6b6b;
+    box-shadow: 0 0 20px #C61A34, 0 0 30px #C61A34;
     transform: scale(1.1);
   }
 }
@@ -204,3 +201,4 @@
 .waving .speech-bubble {
   animation-play-state: running;
 }
+

@@ -26,16 +26,20 @@ function signToken(user) {
  */
 router.post("/register", async (req, res) => {
   try {
-    const { name, password } = req.body || {};
+    const { name, password, role } = req.body || {};
     // --- CORRECCIÓN: Limpiamos el email al recibirlo ---
     const email = String(req.body.email || '').trim().toLowerCase(); 
 
-    console.log("\n[DEBUG] /register: Recibido", { name, email, password: '***' });
+    console.log("\n[DEBUG] /register: Recibido", { name, email, password: '***', role });
 
     if (!name || !email || !password) {
       console.log("[DEBUG] /register: Faltan campos");
       return res.status(400).json({ error: "Faltan campos" });
     }
+
+    // Validar que el rol sea válido (si se proporciona)
+    const validRoles = ['buyer', 'seller', 'moderator', 'admin'];
+    const userRole = role && validRoles.includes(role) ? role : 'buyer';
 
     // valida email repetido
     const { data: exists, error: existsError } = await supabase
@@ -52,9 +56,16 @@ router.post("/register", async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     console.log("[DEBUG] /register: Hash de contraseña creado");
 
+    // Inserta sin especificar ID, deja que Supabase lo auto-asigne
     const { data: inserted, error: insertError } = await supabase
       .from('users')
-      .insert([{ name, email, password_hash: hash }])
+      .insert([{ 
+        name, 
+        email, 
+        password_hash: hash,
+        role: userRole,        // Usa el rol especificado o 'buyer' por defecto
+        status: 'active'       // Status por defecto: active
+      }])
       .select('id, name, email, created_at, role, status');
 
     if (insertError) throw insertError;
@@ -129,6 +140,10 @@ router.post("/login", async (req, res) => {
   }
 });
 
-// (La ruta duplicada /publish fue eliminada)
+// Recuperación de contraseña
+import { forgotPassword, resetPassword } from './password.controller.js';
+
+router.post('/auth/forgot-password', forgotPassword);
+router.post('/auth/reset-password', resetPassword);
 
 export default router;

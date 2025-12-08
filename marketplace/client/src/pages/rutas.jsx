@@ -33,8 +33,11 @@ function App() {
         <Route path="/register" element={<Register />} />
 
         {/* Rutas Protegidas (Requieren estar logueado) */}
-        <Route element={<ProtectedRoute />}>
+        <Route element={<ProtectedRoute roles={['admin', 'seller', 'vendedor', 'buyer']} />}>
           <Route path="/publish" element={<ProductPublish />} />
+        </Route>
+
+        <Route element={<ProtectedRoute />}>
           <Route path="/favorites" element={<FavoritesPage />} />
           {/* Aquí irían otras rutas de usuario, ej: /my-products, /profile */}
         </Route>

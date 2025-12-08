@@ -4,6 +4,7 @@ import api from '../services/api';
 import FilterBar from '../components/FilterBar'; 
 import ProductGrid from '../components/ProductGrid';
 import ProductDetailModal from '../components/ProductDetailModal';
+import './Home.css';
 
 function Home() {
     // ESTADOS
@@ -20,6 +21,8 @@ function Home() {
         console.log('Recargando productos...', filters);
         try {
             const res = await api.get('/products', { params: filters });
+            console.log('Productos recibidos del backend:', res.data);
+            console.log('Primer producto (si existe):', res.data[0]);
             setProducts(res.data || []);
         } catch (error) {
             // Mostrar detalle de error para depuración

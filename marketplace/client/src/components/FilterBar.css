@@ -1,0 +1,126 @@
+/* FilterBar.css - Diseño Premium */
+
+.filter-bar {
+  background: #f5f5f5;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  padding: 20px;
+  margin: 24px 0 32px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.filter-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #C61A34;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.filter-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-group label {
+  font-size: 12px;
+  color: #999999;
+  margin-bottom: 6px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.filter-group input,
+.filter-group select {
+  padding: 10px 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #000000;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s;
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+.filter-group input:focus,
+.filter-group select:focus {
+  outline: none;
+  border-color: #C61A34;
+  box-shadow: 0 0 0 3px rgba(198, 26, 52, 0.08);
+}
+
+.filter-group input::placeholder {
+  color: #999999;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.filter-btn {
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.filter-btn-apply {
+  background: #C61A34;
+  color: white;
+  box-shadow: 0 2px 8px rgba(198, 26, 52, 0.2);
+}
+
+.filter-btn-apply:hover {
+  background: #a01528;
+  box-shadow: 0 4px 12px rgba(198, 26, 52, 0.3);
+}
+
+.filter-btn-reset {
+  background: #ffffff;
+  color: #2B55D6;
+  border: 1px solid #d0d0d0;
+}
+
+.filter-btn-reset:hover {
+  background: #f5f5f5;
+  border-color: #2B55D6;
+}
+
+@media (max-width: 768px) {
+  .filter-controls {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filter-actions {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 480px) {
+  .filter-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .filter-actions {
+    flex-direction: column;
+  }
+
+  .filter-btn {
+    width: 100%;
+  }
+}

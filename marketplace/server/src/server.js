@@ -4,6 +4,7 @@ import dotenv from "dotenv";
 import authRoutes from "./auth.routes.js";
 import productRoutes from './product.routes.js';
 import adminRoutes from './admin.routes.js';
+import notificationRoutes from './notification.routes.js';
 
 dotenv.config();
 
@@ -14,6 +15,7 @@ app.use(express.json());
 // Middlewares para las rutas API
 app.use('/api', authRoutes);
 app.use('/api', productRoutes);
+app.use('/api', notificationRoutes);
 app.use('/api/admin', adminRoutes);
 app.get("/", (_req, res) => res.send("API OK"));
 app.use("/api/auth", authRoutes);
