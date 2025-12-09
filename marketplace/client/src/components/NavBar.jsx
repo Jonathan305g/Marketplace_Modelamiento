@@ -25,8 +25,8 @@ const NavBar = () => {
       </div>
       <div className="navbar-links">
         <Link to="/home">Inicio</Link>
-        {/* Mostrar 'Publicar' solo para roles con permiso (admin, seller, vendedor o buyer) */}
-        {user && (user.role === 'admin' || user.role === 'seller' || user.role === 'vendedor' || user.role === 'buyer') && (
+        {/* Mostrar 'Publicar' SOLO para vendedores (buyer), NO para clientes (user) ni admin */}
+        {user && user.role === 'buyer' && (
           <Link to="/publish">Publicar</Link>
         )}
 
@@ -35,8 +35,8 @@ const NavBar = () => {
           <Link to="/admin">Admin</Link>
         )}
 
-        {/* Mostrar 'Moderación' para admin y moderador */}
-        {user && (user.role === 'admin' || user.role === 'moderator') && (
+        {/* Mostrar 'Moderación' solo para moderadores (NO para admin) */}
+        {user && user.role === 'moderator' && (
           <Link to="/moderation">Moderación</Link>
         )}
 

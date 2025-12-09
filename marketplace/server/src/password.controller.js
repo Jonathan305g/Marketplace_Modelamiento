@@ -4,6 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcryptjs';
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+const FROM_EMAIL = process.env.RESEND_FROM || 'onboarding@resend.dev';
 
 // Función para obtener Resend (lazy initialization)
 const getResend = () => {
@@ -45,8 +46,8 @@ export const forgotPassword = async (req, res) => {
         // Enviar email con Resend
         const resend = getResend();
         const resetLink = `${FRONTEND_URL}/reset-password?token=${token}`;
-        await resend.emails.send({
-            from: 'Marketplace <no-reply@resend.dev>',
+        const emailResult = await resend.emails.send({
+            from: FROM_EMAIL,
             to: email,
             subject: 'Recupera tu contraseña',
             html: `<p>Hola ${user.name || ''},</p>
@@ -54,6 +55,7 @@ export const forgotPassword = async (req, res) => {
                    <p><a href='${resetLink}' style='background:#007bff;color:#fff;padding:10px 20px;text-decoration:none;border-radius:5px;'>Restablecer contraseña</a></p>
                    <p>Si no solicitaste este cambio, ignora este correo.</p>`
         });
+        console.log('[FORGOT] email send result:', emailResult);
         return res.status(200).json({ message: 'Si el correo existe, recibirás un enlace.' });
     } catch (err) {
         console.error('Error en forgotPassword:', err);

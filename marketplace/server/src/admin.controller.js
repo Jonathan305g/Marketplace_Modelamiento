@@ -21,17 +21,30 @@ export const getAllUsers = async (req, res) => {
 
 // --- (ADMIN) Cambiar el ROL de un usuario ---
 export const updateUserRole = async (req, res) => {
-    const { id } = req.params; // ID del usuario a modificar
-    const { role } = req.body; // Nuevo rol (ej: 'moderator' o 'user')
-    const adminId = req.userId; // ID del admin que hace la solicitud
+    const { id } = req.params;
+    const { role } = req.body;
+    const adminId = req.userId;
 
-    if (!role || (role !== 'user' && role !== 'moderator')) {
-        return res.status(400).json({ message: "Rol no válido. Solo se puede asignar 'user' o 'moderator'." });
+    console.log('[DEBUG] updateUserRole - Recibido:', { id, role, adminId, body: req.body });
+
+    // Verificar que role existe
+    if (!role) {
+        console.log('[DEBUG] ERROR: Rol no proporcionado');
+        return res.status(400).json({ message: "El campo 'role' es requerido." });
+    }
+
+    const validRoles = ['user', 'buyer', 'moderator'];
+    if (!validRoles.includes(role)) {
+        console.log('[DEBUG] ERROR: Rol no válido:', role);
+        return res.status(400).json({ message: `Rol no válido: '${role}'. Solo se puede asignar 'user', 'buyer' o 'moderator'.` });
     }
     
     if (Number(id) === Number(adminId)) {
+        console.log('[DEBUG] ERROR: Admin intenta cambiar su propio rol');
         return res.status(403).json({ message: 'Un administrador no puede cambiar su propio rol.' });
     }
+
+    console.log('[DEBUG] Validaciones pasadas, actualizando usuario...');
 
     try {
         const { data: users, error } = await supabase
@@ -48,7 +61,12 @@ export const updateUserRole = async (req, res) => {
         if (!users || users.length === 0) {
             return res.status(404).json({ message: 'Usuario no encontrado o es otro administrador.' });
         }
-        res.status(200).json(users[0]);
+        
+        // Nota: El usuario afectado deberá cerrar sesión y volver a entrar
+        res.status(200).json({
+            ...users[0],
+            message: 'Rol actualizado. El usuario debe cerrar sesión y volver a entrar para ver los cambios.'
+        });
     } catch (error) {
         console.error('Error al cambiar rol:', error);
         res.status(500).json({ message: 'Error interno al cambiar rol.' });

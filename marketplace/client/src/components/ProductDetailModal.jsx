@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './ProductDetailModal.css';
 
 // Acepta las nuevas props: onDelete, currentUserId y onContactSeller (chat)
@@ -21,7 +21,9 @@ const ProductDetailModal = ({ product, onClose, onDelete, currentUserId, onConta
     } = product;
 
     const isOwner = currentUserId && (currentUserId.toString() === user_id?.toString());
-    const firstImage = (images && images.length > 0) ? images[0] : null;
+    const safeImages = images && images.length > 0 ? images : ['https://placehold.co/500x400?text=Sin+Imagen'];
+    const [currentIndex, setCurrentIndex] = useState(0);
+    const currentImage = safeImages[currentIndex];
     const dateString = created_at ? new Date(created_at).toLocaleDateString() : 'N/A';
     const priceDisplay = price ? price.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '0.00';
 
@@ -44,6 +46,18 @@ const ProductDetailModal = ({ product, onClose, onDelete, currentUserId, onConta
         } else {
             alert('Contacto del vendedor: ' + (contact_info || 'No proporcionado'));
         }
+    };
+
+    const nextImage = () => {
+        setCurrentIndex((prev) => (prev + 1) % safeImages.length);
+    };
+
+    const prevImage = () => {
+        setCurrentIndex((prev) => (prev - 1 + safeImages.length) % safeImages.length);
+    };
+
+    const goToImage = (idx) => {
+        setCurrentIndex(idx);
     };
 
     return (
@@ -104,10 +118,31 @@ const ProductDetailModal = ({ product, onClose, onDelete, currentUserId, onConta
 
                     <div className="modal-image-wrapper">
                         <img
-                            src={firstImage || 'https://placehold.co/500x400?text=Sin+Imagen'}
+                            src={currentImage}
                             alt={name}
                             className="modal-image"
+                            onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/500x400?text=Sin+Imagen'; }}
                         />
+
+                        {safeImages.length > 1 && (
+                            <>
+                                <button className="modal-image-nav prev" onClick={prevImage} aria-label="Imagen anterior">‹</button>
+                                <button className="modal-image-nav next" onClick={nextImage} aria-label="Imagen siguiente">›</button>
+
+                                <div className="modal-thumbs">
+                                    {safeImages.map((img, idx) => (
+                                        <button
+                                            key={idx}
+                                            className={`thumb ${idx === currentIndex ? 'active' : ''}`}
+                                            onClick={() => goToImage(idx)}
+                                            aria-label={`Ver imagen ${idx + 1}`}
+                                        >
+                                            <img src={img} alt={`thumb-${idx}`} onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/80x80?text=IMG'; }} />
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
             </div>

@@ -38,8 +38,9 @@ router.post("/register", async (req, res) => {
     }
 
     // Validar que el rol sea válido (si se proporciona)
-    const validRoles = ['buyer', 'seller', 'moderator', 'admin'];
-    const userRole = role && validRoles.includes(role) ? role : 'buyer';
+    // buyer = vendedor, user = cliente, moderator = moderador, admin = admin
+    const validRoles = ['user', 'buyer', 'moderator', 'admin'];
+    const userRole = role && validRoles.includes(role) ? role : 'user';
 
     // valida email repetido
     const { data: exists, error: existsError } = await supabase
@@ -113,13 +114,9 @@ router.post("/login", async (req, res) => {
 
     const user = found[0];
     console.log("[DEBUG] /login: Usuario encontrado. ID:", user.id);
-    console.log("[DEBUG] /login: Hash en BD:", user.password_hash);
     
     const ok = await bcrypt.compare(password, user.password_hash);
-    
-    // --- ¡ESTA ES LA LÍNEA MÁS IMPORTANTE! ---
     console.log("[DEBUG] /login: ¿La contraseña es correcta?:", ok);
-    // ------------------------------------------
 
     if (!ok) return res.status(401).json({ error: "Credenciales inválidas" });
     
@@ -145,5 +142,48 @@ import { forgotPassword, resetPassword } from './password.controller.js';
 
 router.post('/auth/forgot-password', forgotPassword);
 router.post('/auth/reset-password', resetPassword);
+
+/**
+ * GET /api/auth/verify
+ * Verifica el token y devuelve los datos actualizados del usuario
+ */
+router.get('/verify', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(' ')[1];
+    
+    if (!token) {
+      return res.status(401).json({ error: 'No token provided' });
+    }
+
+    // Verificar el token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    
+    // Obtener datos actualizados del usuario desde la BD
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('id, name, email, role, status, created_at')
+      .eq('id', decoded.id)
+      .single();
+
+    if (error || !user) {
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+
+    if (user.status !== 'active') {
+      return res.status(403).json({ error: 'Cuenta suspendida' });
+    }
+
+    // Si el rol cambió, generar un nuevo token
+    if (user.role !== decoded.role) {
+      const newToken = signToken(user);
+      return res.json({ token: newToken, user });
+    }
+
+    res.json({ user });
+  } catch (err) {
+    console.error('[DEBUG] /verify: Error', err);
+    res.status(401).json({ error: 'Token inválido' });
+  }
+});
 
 export default router;

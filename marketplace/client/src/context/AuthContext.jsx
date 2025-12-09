@@ -1,4 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
+import api from '../services/api';
 
 // 1. Crear el Contexto
 const AuthContext = createContext();
@@ -20,24 +21,47 @@ export const AuthProvider = ({ children }) => {
 
   // Chequear si ya existe un token en localStorage al cargar la app
   useEffect(() => {
-    const checkLogin = () => {
+    const checkLogin = async () => {
       try {
         const token = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
+        
+        if (!token) {
+          setLoading(false);
+          return;
+        }
 
-        if (token && storedUser) {
-          // Aquí deberías validar el token contra el backend
-          // Por simplicidad, confiamos en el user guardado.
-          // En una app real, harías una llamada a /api/auth/verify
-          setUser(JSON.parse(storedUser));
+        // Verificar el token y obtener datos actualizados del usuario
+        try {
+          const response = await api.get('/auth/verify');
+          
+          // Si el backend devuelve un nuevo token (porque el rol cambió), actualizarlo
+          if (response.data.token) {
+            localStorage.setItem('token', response.data.token);
+          }
+          
+          // Actualizar el usuario con los datos más recientes de la BD
+          const userData = response.data.user;
+          localStorage.setItem('user', JSON.stringify(userData));
+          
+          const userId = userData.id || userData._id || userData.userId || '';
+          if (userId) localStorage.setItem('userId', String(userId));
+          
+          setUser(userData);
           setIsAuthenticated(true);
+        } catch (err) {
+          // Si el token es inválido o expiró, limpiar todo
+          console.error("Token inválido o expirado:", err);
+          localStorage.clear();
+          setUser(null);
+          setIsAuthenticated(false);
         }
       } catch (error) {
         console.error("Error al cargar autenticación:", error);
-        localStorage.clear(); // Limpiar almacenamiento corrupto
+        localStorage.clear();
       }
       setLoading(false);
     };
+    
     checkLogin();
   }, []);
 

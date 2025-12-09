@@ -33,7 +33,8 @@ function App() {
         <Route path="/register" element={<Register />} />
 
         {/* Rutas Protegidas (Requieren estar logueado) */}
-        <Route element={<ProtectedRoute roles={['admin', 'seller', 'vendedor', 'buyer']} />}>
+        {/* Solo buyer (vendedor) puede publicar productos */}
+        <Route element={<ProtectedRoute roles={['buyer']} />}>
           <Route path="/publish" element={<ProductPublish />} />
         </Route>
 
