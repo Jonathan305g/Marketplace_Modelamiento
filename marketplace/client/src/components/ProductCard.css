@@ -29,9 +29,12 @@
 .product-image-wrapper img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   transition: transform 0.3s ease;
   display: block;
+  background: #f9f9f9;
+  padding: 10px;
+  box-sizing: border-box;
 }
 
 .product-card:hover .product-image-wrapper img {

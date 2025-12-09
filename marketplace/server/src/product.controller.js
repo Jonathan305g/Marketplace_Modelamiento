@@ -39,7 +39,7 @@ const normalizeImageUrls = (imageUrls = []) => {
 
 // --- C R E A T E (Crear Producto) ---
 export const createProduct = async (req, res) => {
-    const { name, description, price, category, location, imageUrls, type, state } = req.body;
+    const { name, description, price, category, location, imageUrls, type, state, latitude, longitude } = req.body;
         const { size, material, contactInfo } = req.body; // Added new fields
     const userId = req.userId;
 
@@ -76,6 +76,8 @@ export const createProduct = async (req, res) => {
                     size, // Added new field
                     material, // Added new field
                     contact_info: contactInfo, // Added new field
+                    latitude,
+                    longitude,
                 type: finalType,
                 state: finalState
             }])
@@ -94,7 +96,7 @@ export const createProduct = async (req, res) => {
 
         const { data: created, error: fetchError } = await supabase
             .from('products')
-                .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)') // Updated select statement
+                .select('id, name, description, price, category, location, size, material, contact_info, latitude, longitude, type, state, created_at, user_id, product_images(image_url)') // Updated select statement
             .eq('id', productId)
             .single();
 
@@ -116,12 +118,12 @@ export const createProduct = async (req, res) => {
 
 // --- R E A D (Obtener productos con filtros) ---
 export const getProducts = async (req, res) => {
-  const { category, location, min_price, max_price, search } = req.query;
+  const { category, location, min_price, max_price, search, latitude, longitude, radius } = req.query;
 
   try {
         let query = supabase
             .from('products')
-            .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)')
+            .select('id, name, description, price, category, location, size, material, contact_info, latitude, longitude, type, state, created_at, user_id, product_images(image_url)')
             .eq('state', 'visible')
             .order('created_at', { ascending: false });
 
@@ -137,12 +139,48 @@ export const getProducts = async (req, res) => {
     console.log('[DEBUG] Productos raw de Supabase count:', data?.length || 0);
 
     // Transformar cada producto: product_images -> images
-    const productsWithImages = (data || []).map(p => ({
+    let productsWithImages = (data || []).map(p => ({
       ...p,
       images: p.product_images?.map(img => img.image_url) || []
     }));
     // Eliminar la propiedad product_images anidada
     productsWithImages.forEach(p => delete p.product_images);
+
+    // Filtrado por proximidad geográfica si se proporciona
+    if (latitude && longitude && radius) {
+      const lat = parseFloat(latitude);
+      const lng = parseFloat(longitude);
+      const radiusKm = parseFloat(radius) || 10;
+
+      // Función para calcular distancia Haversine entre dos coordenadas (en km)
+      const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; // Radio de la Tierra en km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = 
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
+
+      // Filtrar productos dentro del radio especificado
+      productsWithImages = productsWithImages.filter(product => {
+        if (!product.latitude || !product.longitude) return false; // excluir sin coordenadas
+        const distance = calculateDistance(lat, lng, product.latitude, product.longitude);
+        return distance <= radiusKm;
+      });
+
+      // Ordenar por distancia (más cercanos primero)
+      productsWithImages.sort((a, b) => {
+        const distA = calculateDistance(lat, lng, a.latitude, a.longitude);
+        const distB = calculateDistance(lat, lng, b.latitude, b.longitude);
+        return distA - distB;
+      });
+
+      console.log('[DEBUG] Filtrado por proximidad: radio=' + radiusKm + 'km, encontrados=' + productsWithImages.length);
+    }
 
     console.log('[DEBUG] Productos transformados:', JSON.stringify(productsWithImages?.[0], null, 2));
 
@@ -159,7 +197,7 @@ export const getProductById = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('products')
-            .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)')
+            .select('id, name, description, price, category, location, size, material, contact_info, latitude, longitude, type, state, created_at, user_id, product_images(image_url)')
             .eq('id', id)
             .eq('state', 'visible')
             .single();
@@ -187,7 +225,7 @@ export const getProductById = async (req, res) => {
 export const updateProduct = async (req, res) => {
     const { id } = req.params;
     const userId = req.userId;
-    const { name, description, price, category, location, availability, size, material, contactInfo, type, state, imageUrls } = req.body;
+    const { name, description, price, category, location, availability, size, material, contactInfo, type, state, imageUrls, latitude, longitude } = req.body;
 
     if (!name || !price) {
         return res.status(400).json({ message: 'Nombre y Precio son obligatorios.' });
@@ -214,6 +252,8 @@ export const updateProduct = async (req, res) => {
                 size,
                 material,
                 contact_info: contactInfo,
+                latitude,
+                longitude,
                 type: finalType,
                 state: state || 'visible'
             })
@@ -241,7 +281,7 @@ export const updateProduct = async (req, res) => {
 
         const { data: product, error: fetchError } = await supabase
             .from('products')
-            .select('id, name, description, price, category, location, size, material, contact_info, type, state, created_at, user_id, product_images(image_url)')
+            .select('id, name, description, price, category, location, size, material, contact_info, latitude, longitude, type, state, created_at, user_id, product_images(image_url)')
             .eq('id', id)
             .single();
 

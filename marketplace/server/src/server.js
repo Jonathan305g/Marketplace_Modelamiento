@@ -131,8 +131,7 @@ io.on("connection", (socket) => {
         .from("conversations")
         .update({
           last_message_text: inserted.text,
-          last_message_at: inserted.created_at,
-          updated_at: inserted.created_at,
+          last_message_at: inserted.created_at
         })
         .eq("id", convo.id);
 

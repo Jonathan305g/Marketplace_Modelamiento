@@ -8,6 +8,7 @@ const Register = () => {
   const [step, setStep] = useState(1);
   const [name, setName] = useState("");         // nombre
   const [email, setEmail] = useState("");       // email
+  const [role, setRole] = useState("user");     // tipo de cuenta: user (cliente) o buyer (vendedor)
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -33,8 +34,8 @@ const Register = () => {
     setSuccess("");
 
     if (step === 1) {
-      if (!name || !email) {
-        setError("Ingresa nombre y correo");
+      if (!name || !email || !role) {
+        setError("Completa todos los campos");
         return;
       }
       if (!isValidEmail(email)) {
@@ -63,6 +64,7 @@ const Register = () => {
           name: name.trim(),
           email: String(email).trim().toLowerCase(),
           password,
+          role: role, // enviar tipo de cuenta al backend
         };
 
         const res = await fetch("http://localhost:4000/api/auth/register", {
@@ -122,6 +124,20 @@ const Register = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
+            </div>
+
+            <div className="input-group">
+              <label htmlFor="role">Tipo de cuenta</label>
+              <select
+                id="role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="role-select"
+                required
+              >
+                <option value="user">Cliente (Comprador)</option>
+                <option value="buyer">Vendedor</option>
+              </select>
             </div>
 
             {error && <p style={{ color: "#ef4444" }}>{error}</p>}

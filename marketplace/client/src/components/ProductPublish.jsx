@@ -4,13 +4,15 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import ImageUploader from './ImageUploader';
+import LocationPicker from './LocationPicker';
 import './ProductPublish.css';
 
 const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProductToEdit }) => {
     const location = useLocation();
     const navigate = useNavigate();
     const { isAuthenticated, user, loading } = useAuth();
-    const canPublish = user && (user.role === 'admin' || user.role === 'seller' || user.role === 'vendedor' || user.role === 'buyer');
+    // Solo buyer (vendedor) puede publicar. user (cliente) y admin NO pueden
+    const canPublish = user && user.role === 'buyer';
 
     // Soportamos pasar productToEdit por props (cuando se usa como componente) o por location.state (cuando se navega a /publish)
     const productToEdit = propProductToEdit || (location.state && location.state.productToEdit) || null;
@@ -24,12 +26,15 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
         description: '', // Descripción
         category: '',
         location: '',
+        latitude: null,
+        longitude: null,
         contactInfo: '',
         material: '',
         imageUrls: [''], 
         type: 'producto',
     });
     const [statusMessage, setStatusMessage] = useState({ type: '', text: '' });
+    const [showLocationModal, setShowLocationModal] = useState(false);
     
     // PROTECCIÓN: Redirigir si no está autenticado
     useEffect(() => {
@@ -57,6 +62,8 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                 description: productToEdit.description || '',
                 category: productToEdit.category || '',
                 location: productToEdit.location || '',
+                latitude: productToEdit.latitude || null,
+                longitude: productToEdit.longitude || null,
                 contactInfo: productToEdit.contact_info || '',
                 material: productToEdit.material || '',
                 // 'images' viene del backend, 'imageUrls' es lo que usa el form
@@ -137,6 +144,10 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
             price: priceToNumber, // <-- Precio ya convertido a número
             imageUrls: filteredImageUrls
         };
+
+        console.log('[DEBUG] dataToSend:', dataToSend);
+        console.log('[DEBUG] filteredImageUrls:', filteredImageUrls);
+        console.log('[DEBUG] productData.imageUrls:', productData.imageUrls);
 
         try {
             // --- LÓGICA MODIFICADA: O actualiza (PUT) o crea (POST) ---
@@ -314,18 +325,40 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                     />
                 </div>
 
-                {/* Ubicación */}
+                {/* Ubicación con Google Maps */}
                 <div style={{marginBottom: '15px'}}>
-                    <label htmlFor="location" style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Ubicación:</label>
-                    <input
-                        type="text"
-                        id="location"
-                        name="location"
-                        value={productData.location}
-                        onChange={handleChange}
-                        placeholder="Ciudad / Provincia"
-                        style={{width: '100%', padding: '10px', boxSizing: 'border-box'}}
-                    />
+                    <label style={{display: 'block', marginBottom: '5px', fontWeight: 'bold'}}>Ubicación (Selecciona en el mapa):</label>
+                    <button
+                        type="button"
+                        onClick={() => setShowLocationModal(true)}
+                        style={{
+                            width: '100%',
+                            padding: '12px 16px',
+                            background: '#2196f3',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '6px',
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            cursor: 'pointer',
+                            marginBottom: '10px'
+                        }}
+                    >
+                        📍 {productData.latitude && productData.longitude ? 'Cambiar ubicación' : 'Seleccionar ubicación en el mapa'}
+                    </button>
+                    {productData.latitude && productData.longitude && (
+                        <div style={{padding: '12px', background: '#e8f5e9', borderRadius: '6px', marginTop: '10px'}}>
+                            <p style={{margin: '0 0 8px 0', fontWeight: '600', color: '#2e7d32'}}>
+                                ✓ Ubicación confirmada:
+                            </p>
+                            <p style={{margin: '0 0 4px 0', fontSize: '0.95em', color: '#1b5e20'}}>
+                                📍 {productData.location}
+                            </p>
+                            <p style={{margin: '0', fontSize: '0.85em', color: '#558b2f'}}>
+                                Coordenadas: {productData.latitude.toFixed(4)}, {productData.longitude.toFixed(4)}
+                            </p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Información de contacto del vendedor */}
@@ -403,6 +436,51 @@ const ProductPublish = ({ onClose, onProductSubmitted, productToEdit: propProduc
                 </button>
             </form>
             </>
+            )}
+
+            {/* Modal de Ubicación */}
+            {showLocationModal && (
+                <div className="location-modal-overlay">
+                    <div className="location-modal-container">
+                        <div className="location-modal-header">
+                            <h2>Selecciona la ubicación del producto</h2>
+                            <button 
+                                className="location-modal-close"
+                                onClick={() => setShowLocationModal(false)}
+                                type="button"
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div className="location-modal-content">
+                            <LocationPicker 
+                                onLocationSelected={(location) => {
+                                    setProductData(prev => ({
+                                        ...prev,
+                                        location: location.address,
+                                        latitude: location.lat,
+                                        longitude: location.lng
+                                    }));
+                                    setShowLocationModal(false);
+                                }}
+                                initialLocation={productData.latitude && productData.longitude ? {
+                                    lat: productData.latitude,
+                                    lng: productData.longitude,
+                                    address: productData.location
+                                } : null}
+                            />
+                        </div>
+                        <div className="location-modal-footer">
+                            <button 
+                                type="button"
+                                className="btn btn--ghost"
+                                onClick={() => setShowLocationModal(false)}
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

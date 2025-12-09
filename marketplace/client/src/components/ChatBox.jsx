@@ -11,6 +11,15 @@ const ChatBox = ({ userId, otherUserId, onClose }) => {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
+  const messagesEndRef = useRef(null);
+  const hasInitializedRef = useRef(false);
+
+  const scrollToBottom = (behavior = "smooth") => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior, block: "end" });
+    }
+  };
+
   const formatLocalTime = (created_at) => {
     if (!created_at) return "";
     const iso = created_at.replace(" ", "T") + "Z";
@@ -24,8 +33,7 @@ const ChatBox = ({ userId, otherUserId, onClose }) => {
     });
   };
 
-  // Para que la inicialización no se dispare 2 veces con StrictMode
-  const hasInitializedRef = useRef(false);
+
 
   // 1) Inicializar: conectar socket, unirse al room y obtener/crear conversación
   useEffect(() => {
@@ -74,7 +82,7 @@ const ChatBox = ({ userId, otherUserId, onClose }) => {
     initChat();
   }, [userId, otherUserId]);
 
-  // 2) Cuando ya tenemos conversationId: cargar mensajes y suscribirse al socket
+
   useEffect(() => {
     if (!conversationId) return;
 
@@ -137,7 +145,6 @@ const ChatBox = ({ userId, otherUserId, onClose }) => {
     };
   }, [conversationId]);
 
-  // 3) Enviar mensaje por socket (el back lo guarda en Supabase y re-emite)
   const handleSend = (e) => {
     e.preventDefault();
     if (!text.trim() || !conversationId) return;
@@ -149,11 +156,14 @@ const ChatBox = ({ userId, otherUserId, onClose }) => {
       text: text.trim(),
     };
 
-    // NO actualizamos el estado aquí, dejamos que 'receive_message' lo haga
     socket.emit("send_message", payload);
     setText("");
   };
 
+  useEffect(() => {
+    // al cargar por primera vez o cuando se agregan mensajes nuevos
+    scrollToBottom("smooth"); // o "smooth" si quieres animación también al cargar
+  }, [messages]);
   return (
     <div className="chatbox">
       <div className="chatbox__header">
@@ -197,6 +207,7 @@ const ChatBox = ({ userId, otherUserId, onClose }) => {
               </div>
             );
           })}
+          <div ref={messagesEndRef} />
       </div>
 
       <form className="chatbox__input" onSubmit={handleSend}>
@@ -205,7 +216,7 @@ const ChatBox = ({ userId, otherUserId, onClose }) => {
           placeholder="Escribe un mensaje..."
           value={text}
           onChange={(e) => setText(e.target.value)}
-          
+
           disabled={loading || !!errorMsg || !conversationId}
         />
         <button

@@ -30,11 +30,8 @@ const NavBar = () => {
 
       <div className="navbar-links">
         <Link to="/home">Inicio</Link>
-
-        {(user?.role === "admin" ||
-          user?.role === "seller" ||
-          user?.role === "vendedor" ||
-          user?.role === "buyer") && (
+        {/* Mostrar 'Publicar' SOLO para vendedores (buyer), NO para clientes (user) ni admin */}
+        {user && user.role === 'buyer' && (
           <Link to="/publish">Publicar</Link>
         )}
 
