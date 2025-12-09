@@ -11,6 +11,7 @@ import ProductPublish from "./components/ProductPublish";
 import FavoritesPage from "./pages/FavoritesPage";
 import AdminPanel from "./pages/AdminPanel";
 import ModerationPanel from "./pages/ModerationPanel";
+import MessagePage from "./pages/MessagePage";
 import { useAuth, AuthProvider } from './context/AuthContext';
 
 // Componente que contiene la lógica de las rutas y el renderizado
@@ -47,6 +48,7 @@ function AppContent() {
         {/* Rutas protegidas: requieren estar autenticado */}
         <Route element={<ProtectedRoute />}>
           <Route path="/publish" element={<ProductPublish />} />
+          <Route path="/messages" element={<MessagePage />} />
           <Route path="/favorites" element={<FavoritesPage />} />
         </Route>
 

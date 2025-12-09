@@ -8,6 +8,7 @@ import AdminPanel from './AdminPanel'; // <-- IMPORTAR NUEVA PÁGINA
 import ProtectedRoute from './ProtectedRoute'
 import ProductPublish from '../components/ProductPublish';
 import FavoritesPage from './FavoritesPage';
+import MessagePage from "./MessagePage";
 
 const AppLayout = () => {
   return (
@@ -35,6 +36,7 @@ function App() {
         {/* Rutas Protegidas (Requieren estar logueado) */}
         <Route element={<ProtectedRoute roles={['admin', 'seller', 'vendedor', 'buyer']} />}>
           <Route path="/publish" element={<ProductPublish />} />
+          <Route path="/messages" element={<MessagePage />} />
         </Route>
 
         <Route element={<ProtectedRoute />}>

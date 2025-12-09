@@ -131,19 +131,6 @@ const ProductDetailModal = ({
                                 </button>
                             )}
 
-                            <button
-                                className="btn btn-primary"
-                                style={{
-                                    padding: "10px 20px",
-                                    backgroundColor: "#007bff",
-                                    color: "white",
-                                    border: "none",
-                                    borderRadius: "5px",
-                                }}
-                                onClick={() => setShowChat(true)}
-                            >
-                                Contactar Vendedor 💬
-                            </button>
                         </div>
 
                         {/* Imagen */}
@@ -157,16 +144,32 @@ const ProductDetailModal = ({
                                 className="modal-image"
                             />
                         </div>
-
-                        {/* Chat debajo */}
-                        {showChat && (
-                            <div style={{ marginTop: "16px" }}>
-                                <ChatBox
-                                    userId={currentUserId}
-                                    productId={id} // ⬅ importante para que entren a la misma sala
-                                    otherUserName={isOwner ? "Comprador" : "Vendedor"}
-                                />
-                            </div>
+                        {!isOwner && (
+                            <>
+                                <button
+                                    className="btn btn-primary"
+                                    style={{
+                                        padding: "10px 20px",
+                                        backgroundColor: "#007bff",
+                                        color: "white",
+                                        border: "none",
+                                        borderRadius: "5px",
+                                    }}
+                                    onClick={() => setShowChat(true)}
+                                >
+                                    Contactar Vendedor 💬
+                                </button>
+                                {/* Chat debajo */}
+                                {showChat && (
+                                    <div style={{ marginTop: "16px" }}>
+                                        <ChatBox
+                                            userId={currentUserId}  // comprador
+                                            otherUserId={user_id}   // vendedor
+                                            otherUserName={name}
+                                        />
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>

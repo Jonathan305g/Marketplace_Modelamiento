@@ -3,7 +3,12 @@ import { supabase } from './db.js';
 // Tipos permitidos para el campo "type" en products
 const ALLOWED_TYPES = ['producto', 'venta', 'renta', 'donacion', 'intercambio'];
 const BUCKET_NAME = process.env.SUPABASE_BUCKET || 'product-images';
+const BANNED_KEYWORDS = ['arma', 'drogas', 'explosivo', 'pornografía','pistola']; // personaliza
 
+const contieneProhibido = (texto = '') => {
+  const t = texto.toLowerCase();
+  return BANNED_KEYWORDS.some((palabra) => t.includes(palabra.toLowerCase()));
+};
 // Crea el bucket si no existe (usa service role)
 const ensureBucketExists = async () => {
     const { data, error } = await supabase.storage.getBucket(BUCKET_NAME);
